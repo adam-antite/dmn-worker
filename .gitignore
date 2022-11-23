@@ -29,3 +29,5 @@ logs/*
 
 bungie_api.go
 consumer.go
+master-mod-list.json
+vendor-mods.json

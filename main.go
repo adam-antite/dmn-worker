@@ -25,8 +25,12 @@ import (
 var bungieLimiter ratelimit.Limiter
 var messageCount int
 var currentTime string
-var consumerCount int
+var consumerWorkerCount int32
+var scanWorkerCount int32
 var wg sync.WaitGroup
+var scanWg sync.WaitGroup
+
+var usersChannel chan User
 
 var firebaseApp *firebase.App
 var fcmClient *messaging.Client
@@ -44,8 +48,9 @@ type User struct {
 }
 
 func init() {
-	consumerCount = 15
-	bungieLimiter = ratelimit.New(25)
+	consumerWorkerCount = 15
+	scanWorkerCount = 1
+	bungieLimiter = ratelimit.New(100)
 
 	err := godotenv.Load()
 	if err != nil {
@@ -79,21 +84,27 @@ func init() {
 func main() {
 	defer track("main")()
 
-	users := make(chan User)
+	usersChannel = make(chan User)
 
-	go scan(users)
-
-	for i := 1; i <= consumerCount; i++ {
-		wg.Add(1)
-		go consume(users)
+	for i := 0; i < int(scanWorkerCount); i++ {
+		scanWg.Add(1)
+		go scan(int32(i), usersChannel)
 	}
+
+	for i := 1; i <= int(consumerWorkerCount); i++ {
+		wg.Add(1)
+		go consume(usersChannel)
+	}
+
+	scanWg.Wait()
+	close(usersChannel)
 
 	wg.Wait()
 }
 
-func scan(usersChannel chan<- User) {
-	defer close(usersChannel)
-	var users []User
+func scan(segment int32, usersChannel chan<- User) {
+	defer scanWg.Done()
+	var scannedUsers []User
 
 	options := dynamodb.Options{
 		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(os.Getenv("AWS_ACCESS_KEY"), os.Getenv("AWS_SECRET_KEY"), "")),
@@ -103,6 +114,8 @@ func scan(usersChannel chan<- User) {
 	paginator := dynamodb.NewScanPaginator(svc, &dynamodb.ScanInput{
 		TableName:              aws.String("users"),
 		ReturnConsumedCapacity: "TOTAL",
+		Segment:                &segment,
+		TotalSegments:          &scanWorkerCount,
 	})
 
 	for paginator.HasMorePages() {
@@ -112,12 +125,12 @@ func scan(usersChannel chan<- User) {
 			panic(err)
 		}
 
-		err = attributevalue.UnmarshalListOfMaps(out.Items, &users)
+		err = attributevalue.UnmarshalListOfMaps(out.Items, &scannedUsers)
 		if err != nil {
 			panic(err)
 		}
 
-		for _, user := range users {
+		for _, user := range scannedUsers {
 			usersChannel <- user
 		}
 	}
@@ -129,7 +142,6 @@ func consume(users <-chan User) {
 		bungieLimiter.Take()
 		err := checkUserMods(user)
 		if err != nil {
-			fmt.Printf("Error in checkUserMods")
 			panic(err)
 		}
 	}
@@ -137,8 +149,7 @@ func consume(users <-chan User) {
 
 func track(name string) func() {
 	start := time.Now()
-	newpath := filepath.Join(".", "logs")
-	err := os.MkdirAll(newpath, os.ModePerm)
+	err := os.MkdirAll(filepath.Join(".", "logs"), os.ModePerm)
 	if err != nil {
 		return nil
 	}
@@ -160,6 +171,6 @@ func track(name string) func() {
 
 		executionTime := time.Since(start)
 		consumptionRate := float64(messageCount) / executionTime.Seconds()
-		log.Printf("%s\n========\nExecution time: %s\nConsumed %d messages\nConsumption rate: %.2f messages per second\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate)
+		log.Printf("%s\n========\nExecution time: %s\nConsumed %d messages\nProcessing rate: %.2f users per second\nConsumed capacity units: %.2f\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate, capacityUnitsTotal)
 	}
 }

@@ -48,9 +48,9 @@ type User struct {
 }
 
 func init() {
-	consumerWorkerCount = 15
+	consumerWorkerCount = 25
 	scanWorkerCount = 1
-	bungieLimiter = ratelimit.New(100)
+	bungieLimiter = ratelimit.New(25)
 
 	err := godotenv.Load()
 	if err != nil {
@@ -171,6 +171,6 @@ func track(name string) func() {
 
 		executionTime := time.Since(start)
 		consumptionRate := float64(messageCount) / executionTime.Seconds()
-		log.Printf("%s\n========\nExecution time: %s\nConsumed %d messages\nProcessing rate: %.2f users per second\nConsumed capacity units: %.2f\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate, capacityUnitsTotal)
+		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f users per second\nConsumed read capacity units: %.2f\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate, capacityUnitsTotal)
 	}
 }

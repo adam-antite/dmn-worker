@@ -14,8 +14,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/joho/godotenv"
 	"go.uber.org/ratelimit"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -34,7 +36,6 @@ var vendorModsMap map[string]interface{}
 var masterModsMap map[string]interface{}
 
 var capacityUnitsTotal = 0.0
-var totalUsersConsumed = 0
 
 type User struct {
 	UserId             string   `dynamodbav:"userId"`
@@ -43,7 +44,7 @@ type User struct {
 }
 
 func init() {
-	consumerCount = 10
+	consumerCount = 15
 	bungieLimiter = ratelimit.New(25)
 
 	err := godotenv.Load()
@@ -76,18 +77,18 @@ func init() {
 }
 
 func main() {
+	defer track("main")()
+
 	users := make(chan User)
 
 	go scan(users)
 
 	for i := 1; i <= consumerCount; i++ {
 		wg.Add(1)
-		go consume(i, users)
+		go consume(users)
 	}
 
 	wg.Wait()
-
-	fmt.Printf("Total users consumed: %v", totalUsersConsumed)
 }
 
 func scan(usersChannel chan<- User) {
@@ -122,11 +123,43 @@ func scan(usersChannel chan<- User) {
 	}
 }
 
-func consume(worker int, users <-chan User) {
+func consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
 		bungieLimiter.Take()
-		fmt.Printf("User %+v is consumed by worker %v.\n", user, worker)
-		totalUsersConsumed += 1
+		err := checkUserMods(user)
+		if err != nil {
+			fmt.Printf("Error in checkUserMods")
+			panic(err)
+		}
+	}
+}
+
+func track(name string) func() {
+	start := time.Now()
+	newpath := filepath.Join(".", "logs")
+	err := os.MkdirAll(newpath, os.ModePerm)
+	if err != nil {
+		return nil
+	}
+	return func() {
+		LogFile := fmt.Sprintf("./logs/log_%s.log", currentTime)
+		logFile, err := os.OpenFile(LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+		if err != nil {
+			log.Printf(err.Error())
+		}
+		defer func(logFile *os.File) {
+			err := logFile.Close()
+			if err != nil {
+				log.Printf("Error closing log file: " + err.Error())
+			}
+		}(logFile)
+
+		mw := io.MultiWriter(os.Stdout, logFile)
+		log.SetOutput(mw)
+
+		executionTime := time.Since(start)
+		consumptionRate := float64(messageCount) / executionTime.Seconds()
+		log.Printf("%s\n========\nExecution time: %s\nConsumed %d messages\nConsumption rate: %.2f messages per second\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate)
 	}
 }

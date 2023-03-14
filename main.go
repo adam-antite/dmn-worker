@@ -36,8 +36,8 @@ var firebaseApp *firebase.App
 var fcmClient *messaging.Client
 var s3downloader *manager.Downloader
 
-var vendorModsMap map[string]interface{}
-var masterModsMap map[string]interface{}
+var vendorShadersMap map[string]interface{}
+var masterShadersList map[string]interface{}
 
 var capacityUnitsTotal = 0.0
 
@@ -77,8 +77,8 @@ func init() {
 
 	currentTime = time.Now().Format(time.RFC3339)
 
-	vendorModsMap = getVendorMods()
-	masterModsMap = getMasterModList()
+	vendorShadersMap = getVendorShaders()
+	masterShadersList = getMasterShaderList()
 }
 
 func main() {
@@ -107,8 +107,11 @@ func scan(segment int32, usersChannel chan<- User) {
 	var scannedUsers []User
 
 	options := dynamodb.Options{
-		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(os.Getenv("AWS_ACCESS_KEY"), os.Getenv("AWS_SECRET_KEY"), "")),
-		Region:      os.Getenv("AWS_REGION"),
+		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(
+			os.Getenv("AWS_ACCESS_KEY"),
+			os.Getenv("AWS_SECRET_KEY"),
+			"")),
+		Region: os.Getenv("AWS_REGION"),
 	}
 	svc := dynamodb.New(options)
 	paginator := dynamodb.NewScanPaginator(svc, &dynamodb.ScanInput{
@@ -140,7 +143,7 @@ func consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
 		bungieLimiter.Take()
-		err := checkUserMods(user)
+		err := checkUserShaders(user)
 		if err != nil {
 			panic(err)
 		}

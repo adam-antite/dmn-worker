@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-resty/resty/v2"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -58,7 +57,7 @@ func getProfile(httpClient *resty.Client, destinyMembershipId string, membership
 	}
 
 	file, _ := json.MarshalIndent(result, "", " ")
-	_ = ioutil.WriteFile("profile.json", file, 0644)
+	_ = os.WriteFile("profile.json", file, 0644)
 
 	return result, nil, time.Since(profileTime)
 }

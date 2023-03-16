@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -47,7 +47,7 @@ func getVendorShaders() map[string]interface{} {
 	}
 	fmt.Println("Downloaded", file.Name(), numBytes, "bytes")
 
-	byteValues, _ := ioutil.ReadAll(file)
+	byteValues, _ := io.ReadAll(file)
 	var result map[string]interface{}
 	err = json.Unmarshal(byteValues, &result)
 	if err != nil {
@@ -79,7 +79,7 @@ func getMasterShaderList() map[string]interface{} {
 	}
 	fmt.Println("Downloaded", file.Name(), numBytes, "bytes")
 
-	byteValues, _ := ioutil.ReadAll(file)
+	byteValues, _ := io.ReadAll(file)
 	var result map[string]interface{}
 	err = json.Unmarshal(byteValues, &result)
 	if err != nil {

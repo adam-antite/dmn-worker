@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	firebase "firebase.google.com/go"
-	"firebase.google.com/go/messaging"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -12,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
 	"go.uber.org/ratelimit"
 	"io"
@@ -30,11 +29,10 @@ var scanWorkerCount int32
 var wg sync.WaitGroup
 var scanWg sync.WaitGroup
 
-var usersChannel chan User
-
-var firebaseApp *firebase.App
-var fcmClient *messaging.Client
+var discord *discordgo.Session
 var s3downloader *manager.Downloader
+
+var usersChannel chan User
 
 var vendorShadersMap map[string]interface{}
 var masterShadersList map[string]interface{}
@@ -48,6 +46,7 @@ type User struct {
 }
 
 func init() {
+	messageCount = 0
 	consumerWorkerCount = 25
 	scanWorkerCount = 1
 	bungieLimiter = ratelimit.New(25)
@@ -57,28 +56,20 @@ func init() {
 		log.Fatal("Error loading .env file")
 	}
 
-	messageCount = 0
-	currentTime = time.Now().Format(time.RFC3339)
-
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	s3client := s3.NewFromConfig(cfg)
 	s3downloader = manager.NewDownloader(s3client)
 
-	firebaseApp, err = firebase.NewApp(context.Background(), nil)
+	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
+	discord, err = discordgo.New("Bot " + discordBotToken)
 	if err != nil {
-		log.Fatalf("error initializing firebase app: %v\n", err)
+		log.Println("Error initializing discord bot: " + err.Error())
 	}
-
-	ctx := context.Background()
-	fcmClient, err = firebaseApp.Messaging(ctx)
-	if err != nil {
-		log.Fatalf("Error getting Messaging client: %v\n", err)
-	}
-
-	currentTime = time.Now().Format(time.RFC3339)
 
 	vendorShadersMap = getVendorShaders()
 	masterShadersList = getMasterShaderList()
+
+	currentTime = time.Now().Format(time.RFC3339)
 }
 
 func main() {

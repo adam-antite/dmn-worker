@@ -147,21 +147,23 @@ func track(name string) func() {
 	if err != nil {
 		return nil
 	}
+
+	logFilePath := fmt.Sprintf("./logs/log_%s.log", currentTime)
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Printf(err.Error())
+	}
+
+	mw := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(mw)
+
 	return func() {
-		LogFile := fmt.Sprintf("./logs/log_%s.log", currentTime)
-		logFile, err := os.OpenFile(LogFile, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
-		if err != nil {
-			log.Printf(err.Error())
-		}
 		defer func(logFile *os.File) {
 			err := logFile.Close()
 			if err != nil {
 				log.Printf("Error closing log file: " + err.Error())
 			}
 		}(logFile)
-
-		mw := io.MultiWriter(os.Stdout, logFile)
-		log.SetOutput(mw)
 
 		executionTime := time.Since(start)
 		consumptionRate := float64(messageCount) / executionTime.Seconds()

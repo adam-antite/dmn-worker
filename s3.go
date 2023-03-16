@@ -13,16 +13,16 @@ import (
 )
 
 func getVendorShaders() map[string]interface{} {
-	var tuesdayDistance int
-	var tuesdayIndex = 2
-
-	file, err := os.Create("vendor-shaders.json")
+	file, _ := createFile("json-data", "vendor-shaders.json")
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
 			log.Println("error closing vendor shaders list")
 		}
 	}(file)
+
+	var tuesdayDistance int
+	var tuesdayIndex = 2
 
 	// Determine date of previous Tuesday
 	today := time.Now()
@@ -35,6 +35,7 @@ func getVendorShaders() map[string]interface{} {
 	}
 	previousTuesday := today.AddDate(0, 0, -tuesdayDistance).Format("2006-01-02")
 
+	// Download vendor shader list
 	numBytes, err := s3downloader.Download(context.TODO(), file,
 		&s3.GetObjectInput{
 			Bucket: aws.String("dmn-storage"),
@@ -58,7 +59,7 @@ func getVendorShaders() map[string]interface{} {
 }
 
 func getMasterShaderList() map[string]interface{} {
-	file, err := os.Create("master-shader-collectible-list.json")
+	file, _ := createFile("json-data", "master-shader-collectible-list.json")
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
@@ -66,6 +67,7 @@ func getMasterShaderList() map[string]interface{} {
 		}
 	}(file)
 
+	// Download master shader list (collectible hash as key)
 	numBytes, err := s3downloader.Download(context.TODO(), file,
 		&s3.GetObjectInput{
 			Bucket: aws.String("dmn-storage"),

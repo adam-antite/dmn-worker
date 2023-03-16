@@ -1,4 +1,4 @@
-module go-dynamo-scanner
+module dmn-worker
 
 go 1.18
 

@@ -51,14 +51,18 @@ func checkUserShaders(user User) error {
 	directMessageContent := buildDirectMessageContent(missingShaders)
 	dmChannel, err := discord.UserChannelCreate(user.UserId)
 	if err != nil {
-		log.Printf("(Request ID: %s) Error creating DM channel for user with ID %s: %s\n", requestId, user.UserId, err.Error())
+		log.Printf("(Request ID: %s) Error creating DM channel for user %s: %s\n", requestId, user.UserId, err.Error())
 	}
 
-	_, err = discord.ChannelMessageSend(dmChannel.ID, directMessageContent)
-	if err != nil {
-		log.Printf("(Request ID: %s) Error sending direct message to user with ID %s: %s\n", requestId, user.UserId, err.Error())
+	if directMessageContent != "" {
+		_, err = discord.ChannelMessageSend(dmChannel.ID, directMessageContent)
+		if err != nil {
+			log.Printf("(Request ID: %s) Error sending direct message to user %s: %s\n", requestId, user.UserId, err.Error())
+		} else {
+			log.Printf("(Request ID: %s) Successfully sent message to user %s", requestId, user.UserId)
+		}
 	} else {
-		log.Printf("(Request ID: %s) Successfully sent message")
+		log.Printf("(Request ID: %s) Skipped sending message to user %s\n", requestId, user.UserId)
 	}
 
 	log.Printf("(Request ID: %s) Finished in %s\n", requestId, time.Since(start))
@@ -98,18 +102,13 @@ func getMissingAdaShaders(missingCollectibles []string) []string {
 }
 
 func buildDirectMessageContent(missingShaders []string) string {
-	var message string
+	var message = ""
 
 	// Missing shaders available from Ada
 	if len(missingShaders) > 0 {
 		message = fmt.Sprintf(
 			"Ada-1 is selling shaders you don't have: %s!",
 			strings.Join(missingShaders, ", "))
-	}
-
-	// No missing shaders available from Ada
-	if len(missingShaders) == 0 {
-		message = "There are no new shaders available for you this week."
 	}
 
 	return message

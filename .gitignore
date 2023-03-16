@@ -25,6 +25,7 @@ logs/*
 
 # Files
 serviceAccountKey.json
+profile.json
 master-shader-list.json
 master-shader-collectible-list.json
 vendor-shaders.json

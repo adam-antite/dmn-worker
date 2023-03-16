@@ -80,7 +80,7 @@ func checkUserShaders(user User) error {
 }
 
 func getMembershipData(httpClient *resty.Client, bungieMembershipId string) (map[string]interface{}, error, time.Duration) {
-	apiKey := os.Getenv("API_KEY")
+	apiKey := os.Getenv("BUNGIE_API_KEY")
 	var result map[string]interface{}
 
 	bungieLimiter.Take()
@@ -102,7 +102,7 @@ func getMembershipData(httpClient *resty.Client, bungieMembershipId string) (map
 
 func getProfile(httpClient *resty.Client, destinyMembershipId string, membershipType int) (map[string]interface{}, error, time.Duration) {
 	var result map[string]interface{}
-	apiKey := os.Getenv("API_KEY")
+	apiKey := os.Getenv("BUNGIE_API_KEY")
 
 	bungieLimiter.Take()
 	profileTime := time.Now()
@@ -129,7 +129,7 @@ func getMissingCollectibles(profile map[string]interface{}) []string {
 	for collectible, state := range profile["Response"].(map[string]interface{})["profileCollectibles"].(map[string]interface{})["data"].(map[string]interface{})["collectibles"].(map[string]interface{}) {
 		if _, isShader := masterShadersList[collectible]; isShader {
 			stateValue := int(state.(map[string]interface{})["state"].(float64))
-			if stateValue & notAcquired == 1 {
+			if stateValue&notAcquired == 1 {
 				//fmt.Printf("Shader name: %s, collectibleHash: %s, state: %d\n",
 				//	shaderName,
 				//	collectible,

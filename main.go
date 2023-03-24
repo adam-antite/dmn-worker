@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	"runtime"
+	"strings"
 )
 
 var bungieLimiter ratelimit.Limiter
@@ -142,13 +144,20 @@ func consume(users <-chan User) {
 }
 
 func track(name string) func() {
+	var logFilePath string
+
 	start := time.Now()
 	err := os.MkdirAll(filepath.Join(".", "logs"), os.ModePerm)
 	if err != nil {
 		return nil
 	}
 
-	logFilePath := fmt.Sprintf("./logs/log_%s.log", currentTime)
+	if runtime.GOOS == "windows" {
+		logFilePath = fmt.Sprintf("./logs/log_%s.log", currentTime)
+		logFilePath = strings.Replace(logFilePath, ":", ".", -1)
+	} else {
+		logFilePath = fmt.Sprintf("./logs/log_%s.log", currentTime)
+	}
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		log.Printf(err.Error())

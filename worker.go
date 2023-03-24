@@ -109,6 +109,8 @@ func buildDirectMessageContent(missingShaders []string) string {
 		message = fmt.Sprintf(
 			"Ada-1 is selling shaders you don't have: %s!",
 			strings.Join(missingShaders, ", "))
+	} else {
+		message = fmt.Sprintf("Ada-1 is not selling any new shaders for you this week.")
 	}
 
 	return message

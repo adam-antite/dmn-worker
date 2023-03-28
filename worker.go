@@ -5,6 +5,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,7 +19,7 @@ func checkUserShaders(user User) error {
 		SetRetryWaitTime(5 * time.Second).
 		SetRetryMaxWaitTime(20 * time.Second)
 
-	membershipData, err, membershipDataTime := getMembershipData(httpClient, user.BungieMembershipId)
+	membershipData, err, membershipDataTime := getMembershipData(httpClient, strconv.FormatInt(int64(user.BungieMembershipId), 10))
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting Bungie membership data: %s\n", requestId, err)
 		return err
@@ -49,20 +50,20 @@ func checkUserShaders(user User) error {
 
 	// Determine directMessageContent content and send
 	directMessageContent := buildDirectMessageContent(missingShaders)
-	dmChannel, err := discord.UserChannelCreate(user.UserId)
+	dmChannel, err := discord.UserChannelCreate(strconv.FormatInt(int64(user.DiscordId), 10))
 	if err != nil {
-		log.Printf("(Request ID: %s) Error creating DM channel for user %s: %s\n", requestId, user.UserId, err.Error())
+		log.Printf("(Request ID: %s) Error creating DM channel for user %d: %s\n", requestId, user.DiscordId, err.Error())
 	}
 
 	if directMessageContent != "" {
 		_, err = discord.ChannelMessageSend(dmChannel.ID, directMessageContent)
 		if err != nil {
-			log.Printf("(Request ID: %s) Error sending direct message to user %s: %s\n", requestId, user.UserId, err.Error())
+			log.Printf("(Request ID: %s) Error sending direct message to user %d: %s\n", requestId, user.DiscordId, err.Error())
 		} else {
-			log.Printf("(Request ID: %s) Successfully sent message to user %s", requestId, user.UserId)
+			log.Printf("(Request ID: %s) Successfully sent message to user %d", requestId, user.DiscordId)
 		}
 	} else {
-		log.Printf("(Request ID: %s) Skipped sending message to user %s\n", requestId, user.UserId)
+		log.Printf("(Request ID: %s) Skipped sending message to user %d\n", requestId, user.DiscordId)
 	}
 
 	log.Printf("(Request ID: %s) Finished in %s\n", requestId, time.Since(start))

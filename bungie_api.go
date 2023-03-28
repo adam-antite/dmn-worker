@@ -56,8 +56,8 @@ func getProfile(httpClient *resty.Client, destinyMembershipId string, membership
 		return nil, err, time.Since(profileTime)
 	}
 
-	file, _ := json.MarshalIndent(result, "", " ")
-	_ = os.WriteFile("profile.json", file, 0644)
+	//file, _ := json.MarshalIndent(result, "", " ")
+	//_ = os.WriteFile("profile.json", file, 0644)
 
 	return result, nil, time.Since(profileTime)
 }

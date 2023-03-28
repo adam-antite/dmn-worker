@@ -2,55 +2,51 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/bwmarrin/discordgo"
 	"github.com/joho/godotenv"
+	supa "github.com/nedpals/supabase-go"
 	"go.uber.org/ratelimit"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
-	"sync"
-	"time"
 	"runtime"
 	"strings"
+	"sync"
+	"time"
 )
 
 var bungieLimiter ratelimit.Limiter
 var messageCount int
 var currentTime string
 var consumerWorkerCount int32
-var scanWorkerCount int32
+
 var wg sync.WaitGroup
 var scanWg sync.WaitGroup
 
 var discord *discordgo.Session
 var s3downloader *manager.Downloader
+var supabase *supa.Client
 
 var usersChannel chan User
 
 var vendorShadersMap map[string]interface{}
 var masterShadersList map[string]interface{}
 
-var capacityUnitsTotal = 0.0
-
 type User struct {
-	UserId             string   `dynamodbav:"userId"`
-	BungieMembershipId string   `dynamodbav:"bungieMembershipId"`
-	FcmTokens          []string `dynamodbav:"fcmTokens"`
+	DiscordId          int    `json:"discord_id"`
+	BungieMembershipId int    `json:"bungie_membership_id"`
+	CreatedAt          string `json:"created_at"`
 }
 
 func init() {
 	messageCount = 0
 	consumerWorkerCount = 25
-	scanWorkerCount = 1
 	bungieLimiter = ratelimit.New(25)
 
 	err := godotenv.Load()
@@ -61,6 +57,8 @@ func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	s3client := s3.NewFromConfig(cfg)
 	s3downloader = manager.NewDownloader(s3client)
+
+	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_KEY"))
 
 	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
 	discord, err = discordgo.New("Bot " + discordBotToken)
@@ -79,10 +77,8 @@ func main() {
 
 	usersChannel = make(chan User)
 
-	for i := 0; i < int(scanWorkerCount); i++ {
-		scanWg.Add(1)
-		go scan(int32(i), usersChannel)
-	}
+	scanWg.Add(1)
+	go scan(usersChannel)
 
 	for i := 1; i <= int(consumerWorkerCount); i++ {
 		wg.Add(1)
@@ -95,40 +91,29 @@ func main() {
 	wg.Wait()
 }
 
-func scan(segment int32, usersChannel chan<- User) {
+func scan(usersChannel chan<- User) {
 	defer scanWg.Done()
-	var scannedUsers []User
+	var results []interface{}
 
-	options := dynamodb.Options{
-		Credentials: aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(
-			os.Getenv("AWS_ACCESS_KEY"),
-			os.Getenv("AWS_SECRET_KEY"),
-			"")),
-		Region: os.Getenv("AWS_REGION"),
+	err := supabase.DB.From("users").Select("*").Execute(&results)
+	if err != nil {
+		panic(err)
 	}
-	svc := dynamodb.New(options)
-	paginator := dynamodb.NewScanPaginator(svc, &dynamodb.ScanInput{
-		TableName:              aws.String("users"),
-		ReturnConsumedCapacity: "TOTAL",
-		Segment:                &segment,
-		TotalSegments:          &scanWorkerCount,
-	})
 
-	for paginator.HasMorePages() {
-		out, err := paginator.NextPage(context.TODO())
-		capacityUnitsTotal += *out.ConsumedCapacity.CapacityUnits
+	for _, data := range results {
+		jsonData, err := json.Marshal(data)
 		if err != nil {
+			log.Println("error marshaling user data into json")
 			panic(err)
 		}
 
-		err = attributevalue.UnmarshalListOfMaps(out.Items, &scannedUsers)
+		user := User{}
+		err = json.Unmarshal(jsonData, &user)
 		if err != nil {
-			panic(err)
+			log.Println("error unmarshaling user data into user struct")
 		}
 
-		for _, user := range scannedUsers {
-			usersChannel <- user
-		}
+		usersChannel <- user
 	}
 }
 
@@ -176,6 +161,6 @@ func track(name string) func() {
 
 		executionTime := time.Since(start)
 		consumptionRate := float64(messageCount) / executionTime.Seconds()
-		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f users per second\nConsumed read capacity units: %.2f\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate, capacityUnitsTotal)
+		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f users per second\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate)
 	}
 }

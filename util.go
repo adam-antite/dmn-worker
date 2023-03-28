@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
+	"time"
 )
 
 func createFile(dirName string, fileName string) (*os.File, error) {
@@ -25,4 +27,29 @@ func createFile(dirName string, fileName string) (*os.File, error) {
 	}
 
 	return file, nil
+}
+
+func getPreviousTuesday() string {
+	var tuesdayDistance int
+	var tuesdayIndex = 2
+
+	today := time.Now()
+	todayIndex := int(today.Weekday())
+	todayCurrentTime := today.UTC().Format("1504")
+	todayCurrentTimeInt, _ := strconv.ParseInt(todayCurrentTime, 10, 32)
+
+	tuesdayDelta := todayIndex - tuesdayIndex
+	if todayCurrentTimeInt < 1700 && todayIndex == tuesdayIndex {
+		tuesdayDistance = 7
+	} else if tuesdayDelta < 0 {
+		tuesdayDistance = 7 + tuesdayDelta
+	} else {
+		tuesdayDistance = tuesdayDelta
+	}
+	previousTuesday := today.AddDate(0, 0, -tuesdayDistance).Format("2006-01-02")
+
+	log.Printf("Current time (UTC): %s", todayCurrentTime)
+	log.Printf("Previous Tuesday: %s", previousTuesday)
+
+	return previousTuesday
 }

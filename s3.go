@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"time"
 )
 
 func getVendorShaders() map[string]interface{} {
@@ -21,19 +20,7 @@ func getVendorShaders() map[string]interface{} {
 		}
 	}(file)
 
-	var tuesdayDistance int
-	var tuesdayIndex = 2
-
-	// Determine date of previous Tuesday
-	today := time.Now()
-	todayIndex := int(today.Weekday())
-	tuesdayDelta := todayIndex - tuesdayIndex
-	if tuesdayDelta < 0 {
-		tuesdayDistance = 7 - tuesdayDelta
-	} else {
-		tuesdayDistance = tuesdayDelta
-	}
-	previousTuesday := today.AddDate(0, 0, -tuesdayDistance).Format("2006-01-02")
+	previousTuesday := getPreviousTuesday()
 
 	// Download vendor shader list
 	numBytes, err := s3downloader.Download(context.TODO(), file,

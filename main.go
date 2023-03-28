@@ -58,7 +58,7 @@ func init() {
 	s3client := s3.NewFromConfig(cfg)
 	s3downloader = manager.NewDownloader(s3client)
 
-	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_KEY"))
+	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
 	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
 	discord, err = discordgo.New("Bot " + discordBotToken)

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +25,7 @@ import (
 var bungieLimiter ratelimit.Limiter
 var messageCount int
 var currentTime string
-var consumerWorkerCount int32
+var consumerWorkerCount int64
 
 var wg sync.WaitGroup
 var scanWg sync.WaitGroup
@@ -39,20 +40,23 @@ var vendorShadersMap map[string]interface{}
 var masterShadersList map[string]interface{}
 
 type User struct {
-	DiscordId          float64    	`json:"discord_id"`
-	BungieMembershipId float64   	`json:"bungie_membership_id"`
-	CreatedAt          string		`json:"created_at"`
+	DiscordId          float64 `json:"discord_id"`
+	BungieMembershipId float64 `json:"bungie_membership_id"`
+	CreatedAt          string  `json:"created_at"`
 }
 
 func init() {
 	messageCount = 0
-	consumerWorkerCount = 25
 	bungieLimiter = ratelimit.New(25)
 
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	if !isRunningInContainer() {
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
 	}
+
+	consumerWorkerCount, _ = strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
 
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	s3client := s3.NewFromConfig(cfg)
@@ -75,7 +79,7 @@ func init() {
 func main() {
 	defer track("main")()
 
-	usersChannel = make(chan User)
+	usersChannel = make(chan User, consumerWorkerCount)
 
 	scanWg.Add(1)
 	go scan(usersChannel)
@@ -95,6 +99,8 @@ func scan(usersChannel chan<- User) {
 	defer scanWg.Done()
 	var results []map[string]interface{}
 
+	log.Println("scanning users table...")
+
 	err := supabase.DB.From("users").Select("*").Execute(&results)
 	if err != nil {
 		panic(err)
@@ -109,13 +115,14 @@ func scan(usersChannel chan<- User) {
 
 		user := User{}
 		err = json.Unmarshal(jsonData, &user)
-		log.Printf("%.0f", user.DiscordId)
 		if err != nil {
 			log.Println("error unmarshaling user data into user struct")
 		}
 
 		usersChannel <- user
 	}
+
+	log.Println("finished scanning.")
 }
 
 func consume(users <-chan User) {
@@ -161,7 +168,7 @@ func track(name string) func() {
 		}(logFile)
 
 		executionTime := time.Since(start)
-		consumptionRate := float64(messageCount) / executionTime.Seconds()
-		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f users per second\n", name, executionTime.Truncate(time.Second), messageCount, consumptionRate)
+		consumptionRate := executionTime.Seconds() / float64(messageCount)
+		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f seconds per user\n", name, executionTime.Truncate(time.Millisecond), messageCount, consumptionRate)
 	}
 }

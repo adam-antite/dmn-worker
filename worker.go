@@ -5,6 +5,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -48,22 +49,26 @@ func checkUserShaders(user User) error {
 		log.Printf("(Request ID: %s) User has missing shaders available from Ada-1: %v\n", requestId, strings.Join(missingShaders, ", "))
 	}
 
-	// Determine directMessageContent content and send
-	directMessageContent := buildDirectMessageContent(missingShaders)
-	dmChannel, err := discord.UserChannelCreate(strconv.FormatInt(int64(user.DiscordId), 10))
-	if err != nil {
-		log.Printf("(Request ID: %s) Error creating DM channel for user %d: %s\n", requestId, int64(user.DiscordId), err.Error())
-	}
+	if os.Getenv("MESSAGE_MODE") == "send" {
+		directMessageContent := buildDirectMessageContent(missingShaders)
 
-	if directMessageContent != "" {
-		_, err = discord.ChannelMessageSend(dmChannel.ID, directMessageContent)
-		if err != nil {
-			log.Printf("(Request ID: %s) Error sending direct message to user %d: %s\n", requestId, int64(user.DiscordId), err.Error())
+		if directMessageContent != "" {
+			dmChannel, err := discord.UserChannelCreate(strconv.FormatInt(int64(user.DiscordId), 10))
+			if err != nil {
+				log.Printf("(Request ID: %s) Error creating DM channel for user %d: %s\n", requestId, int64(user.DiscordId), err.Error())
+			}
+
+			_, err = discord.ChannelMessageSend(dmChannel.ID, directMessageContent)
+			if err != nil {
+				log.Printf("(Request ID: %s) Error sending direct message to user %d: %s\n", requestId, int64(user.DiscordId), err.Error())
+			} else {
+				log.Printf("(Request ID: %s) Successfully sent message to user %d", requestId, int64(user.DiscordId))
+			}
 		} else {
-			log.Printf("(Request ID: %s) Successfully sent message to user %d", requestId, int64(user.DiscordId))
+			log.Printf("(Request ID: %s) Skipped sending message to user %d\n", requestId, int64(user.DiscordId))
 		}
 	} else {
-		log.Printf("(Request ID: %s) Skipped sending message to user %d\n", requestId, int64(user.DiscordId))
+		log.Printf("(Request ID: %s) Messaging disabled, skipped sending message to user %d\n", requestId, int64(user.DiscordId))
 	}
 
 	log.Printf("(Request ID: %s) Finished in %s\n", requestId, time.Since(start))

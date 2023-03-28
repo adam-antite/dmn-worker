@@ -39,9 +39,9 @@ var vendorShadersMap map[string]interface{}
 var masterShadersList map[string]interface{}
 
 type User struct {
-	DiscordId          int    `json:"discord_id"`
-	BungieMembershipId int    `json:"bungie_membership_id"`
-	CreatedAt          string `json:"created_at"`
+	DiscordId          float64    	`json:"discord_id"`
+	BungieMembershipId float64   	`json:"bungie_membership_id"`
+	CreatedAt          string		`json:"created_at"`
 }
 
 func init() {
@@ -93,7 +93,7 @@ func main() {
 
 func scan(usersChannel chan<- User) {
 	defer scanWg.Done()
-	var results []interface{}
+	var results []map[string]interface{}
 
 	err := supabase.DB.From("users").Select("*").Execute(&results)
 	if err != nil {
@@ -109,6 +109,7 @@ func scan(usersChannel chan<- User) {
 
 		user := User{}
 		err = json.Unmarshal(jsonData, &user)
+		log.Printf("%.0f", user.DiscordId)
 		if err != nil {
 			log.Println("error unmarshaling user data into user struct")
 		}

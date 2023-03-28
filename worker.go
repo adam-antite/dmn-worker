@@ -52,18 +52,18 @@ func checkUserShaders(user User) error {
 	directMessageContent := buildDirectMessageContent(missingShaders)
 	dmChannel, err := discord.UserChannelCreate(strconv.FormatInt(int64(user.DiscordId), 10))
 	if err != nil {
-		log.Printf("(Request ID: %s) Error creating DM channel for user %d: %s\n", requestId, user.DiscordId, err.Error())
+		log.Printf("(Request ID: %s) Error creating DM channel for user %d: %s\n", requestId, int64(user.DiscordId), err.Error())
 	}
 
 	if directMessageContent != "" {
 		_, err = discord.ChannelMessageSend(dmChannel.ID, directMessageContent)
 		if err != nil {
-			log.Printf("(Request ID: %s) Error sending direct message to user %d: %s\n", requestId, user.DiscordId, err.Error())
+			log.Printf("(Request ID: %s) Error sending direct message to user %d: %s\n", requestId, int64(user.DiscordId), err.Error())
 		} else {
-			log.Printf("(Request ID: %s) Successfully sent message to user %d", requestId, user.DiscordId)
+			log.Printf("(Request ID: %s) Successfully sent message to user %d", requestId, int64(user.DiscordId))
 		}
 	} else {
-		log.Printf("(Request ID: %s) Skipped sending message to user %d\n", requestId, user.DiscordId)
+		log.Printf("(Request ID: %s) Skipped sending message to user %d\n", requestId, int64(user.DiscordId))
 	}
 
 	log.Printf("(Request ID: %s) Finished in %s\n", requestId, time.Since(start))

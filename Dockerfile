@@ -11,7 +11,7 @@ RUN go mod verify
 COPY *.go ./
 COPY .env ./
 
-RUN GOOS=linux GOARCH=amd64 go build -o /worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker
 
 FROM gcr.io/distroless/static-debian11
 

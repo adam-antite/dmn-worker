@@ -17,7 +17,7 @@ on:
         options:
           - info
           - warning
-          - debug'
+          - debug
       tags:
         description: 'Test scenario tags'
         required: false

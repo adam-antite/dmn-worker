@@ -46,6 +46,7 @@ type User struct {
 }
 
 func init() {
+	log.Println("starting worker...")
 	messageCount = 0
 	bungieLimiter = ratelimit.New(25)
 

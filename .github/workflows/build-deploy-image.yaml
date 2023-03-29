@@ -1,4 +1,4 @@
-name: ci
+name: build-deploy-worker-image
 
 on:
   workflow_dispatch:

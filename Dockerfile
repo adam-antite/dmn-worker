@@ -10,10 +10,10 @@ RUN go mod verify
 
 COPY *.go ./
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /worker .
 
 FROM gcr.io/distroless/static-debian11
 
 COPY --from=base /worker .
 
-CMD [ "./worker --container=true" ]
+ENTRYPOINT ["/worker", "--container=true"]

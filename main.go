@@ -48,7 +48,11 @@ type User struct {
 
 func init() {
 	log.Println("starting worker...")
+
 	isRunningInContainer := flag.Bool("container", false, "running inside container: true or false")
+	flag.Parse()
+
+	log.Println(*isRunningInContainer)
 
 	messageCount = 0
 	bungieLimiter = ratelimit.New(25)

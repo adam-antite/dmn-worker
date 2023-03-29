@@ -49,7 +49,7 @@ func checkUserShaders(user User) error {
 		log.Printf("(Request ID: %s) User has missing shaders available from Ada-1: %v\n", requestId, strings.Join(missingShaders, ", "))
 	}
 
-	if os.Getenv("MESSAGE_MODE") == "send" {
+	if os.Getenv("SEND_MESSAGES") == "true" {
 		directMessageContent := buildDirectMessageContent(missingShaders)
 
 		if directMessageContent != "" {

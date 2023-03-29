@@ -22,9 +22,7 @@ go.work
 .env
 out/
 logs/*
+json-data/
 
 # Files
-serviceAccountKey.json
-master-shader-list.json
-master-shader-collectible-list.json
-vendor-shaders.json
+profile.json

@@ -16,4 +16,4 @@ FROM gcr.io/distroless/static-debian11
 
 COPY --from=base /worker .
 
-CMD [ "./worker" ]
+CMD [ "./worker container=true" ]

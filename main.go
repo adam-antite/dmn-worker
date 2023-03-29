@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -47,10 +48,12 @@ type User struct {
 
 func init() {
 	log.Println("starting worker...")
+	isRunningInContainer := flag.Bool("container", false, "running inside container: true or false")
+
 	messageCount = 0
 	bungieLimiter = ratelimit.New(25)
 
-	if !isRunningInContainer() {
+	if !*isRunningInContainer {
 		err := godotenv.Load()
 		if err != nil {
 			log.Fatal("Error loading .env file")
@@ -146,6 +149,7 @@ func track(name string) func() {
 		return nil
 	}
 
+	//goland:noinspection GoBoolExpressions
 	if runtime.GOOS == "windows" {
 		logFilePath = fmt.Sprintf("./logs/log_%s.log", currentTime)
 		logFilePath = strings.Replace(logFilePath, ":", ".", -1)

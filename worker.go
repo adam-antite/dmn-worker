@@ -110,7 +110,6 @@ func getMissingAdaShaders(missingCollectibles []string) []string {
 func buildDirectMessageContent(missingShaders []string) string {
 	var message = ""
 
-	// Missing shaders available from Ada
 	if len(missingShaders) > 0 {
 		message = fmt.Sprintf(
 			"Ada-1 is selling shaders you don't have: %s!",

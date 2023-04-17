@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 func getVendorShaders() map[string]interface{} {
@@ -77,4 +78,17 @@ func getMasterShaderList() map[string]interface{} {
 	return result
 }
 
-// TODO: write upload function for log files
+func uploadLogs(file *os.File) {
+	_, fileName := filepath.Split(file.Name())
+
+	_, err := s3uploader.Upload(context.Background(), &s3.PutObjectInput{
+		Bucket: aws.String("dmn-storage"),
+		Key:    aws.String("logs/" + fileName),
+		Body:   file,
+	})
+	if err != nil {
+		log.Printf("error uploading file to s3: %s", err)
+		return
+	}
+	log.Println("log file successfully uploaded to s3")
+}

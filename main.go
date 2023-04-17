@@ -27,12 +27,14 @@ var bungieLimiter ratelimit.Limiter
 var messageCount int
 var currentTime string
 var consumerWorkerCount int64
+var isRunningInContainer *bool
 
 var wg sync.WaitGroup
 var scanWg sync.WaitGroup
 
 var discord *discordgo.Session
 var s3downloader *manager.Downloader
+var s3uploader *manager.Uploader
 var supabase *supa.Client
 
 var usersChannel chan User
@@ -50,7 +52,7 @@ type User struct {
 func init() {
 	log.Println("starting worker...")
 
-	isRunningInContainer := flag.Bool("container", false, "running inside container: true or false")
+	isRunningInContainer = flag.Bool("container", false, "running inside container: true or false")
 	flag.Parse()
 
 	messageCount = 0
@@ -68,6 +70,7 @@ func init() {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	s3client := s3.NewFromConfig(cfg)
 	s3downloader = manager.NewDownloader(s3client)
+	s3uploader = manager.NewUploader(s3client)
 
 	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
@@ -170,6 +173,9 @@ func track(name string) func() {
 
 	return func() {
 		defer func(logFile *os.File) {
+			if *isRunningInContainer {
+				uploadLogs(logFile)
+			}
 			err := logFile.Close()
 			if err != nil {
 				log.Printf("Error closing log file: " + err.Error())
@@ -178,6 +184,6 @@ func track(name string) func() {
 
 		executionTime := time.Since(start)
 		consumptionRate := executionTime.Seconds() / float64(messageCount)
-		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f seconds per user\n", name, executionTime.Truncate(time.Millisecond), messageCount, consumptionRate)
+		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f seconds per user\n========\n", name, executionTime.Truncate(time.Millisecond), messageCount, consumptionRate)
 	}
 }

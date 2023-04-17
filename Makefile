@@ -1,7 +1,9 @@
+CONTAINER_NAME=shader-worker
+
 build:
 	go build -o out/
 
 docker:
-	docker build -t shader-worker .
-	docker run --env-file .env --name shader-worker shader-worker
-	docker rm shader-worker
+	docker build -t $(CONTAINER_NAME) .
+	docker run --env-file .env --name $(CONTAINER_NAME) $(CONTAINER_NAME)
+	docker rm $(CONTAINER_NAME)

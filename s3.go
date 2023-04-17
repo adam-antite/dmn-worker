@@ -32,7 +32,7 @@ func getVendorShaders() map[string]interface{} {
 		log.Println("Error retrieving vendor shaders list from S3.")
 		log.Fatal(err)
 	}
-	fmt.Println("Downloaded", file.Name(), numBytes, "bytes")
+	log.Println("Downloaded", file.Name(), numBytes, "bytes")
 
 	byteValues, _ := io.ReadAll(file)
 	var result map[string]interface{}
@@ -64,7 +64,7 @@ func getMasterShaderList() map[string]interface{} {
 		log.Println("error retrieving master shader list from S3.")
 		log.Fatal(err)
 	}
-	fmt.Println("Downloaded", file.Name(), numBytes, "bytes")
+	log.Println("Downloaded", file.Name(), numBytes, "bytes")
 
 	byteValues, _ := io.ReadAll(file)
 	var result map[string]interface{}
@@ -76,3 +76,5 @@ func getMasterShaderList() map[string]interface{} {
 
 	return result
 }
+
+// TODO: write upload function for log files

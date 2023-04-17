@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func checkUserShaders(user User) error {
+func processUser(user User) error {
 	start := time.Now()
 	requestId := uuid.New().String()
 	httpClient := resty.New()
@@ -20,7 +20,7 @@ func checkUserShaders(user User) error {
 		SetRetryWaitTime(5 * time.Second).
 		SetRetryMaxWaitTime(20 * time.Second)
 
-	membershipData, err, membershipDataTime := getMembershipData(httpClient, strconv.FormatInt(int64(user.BungieMembershipId), 10))
+	membershipData, membershipDataTime, err := getMembershipData(httpClient, strconv.FormatInt(int64(user.BungieMembershipId), 10))
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting Bungie membership data: %s\n", requestId, err)
 		return err
@@ -30,7 +30,7 @@ func checkUserShaders(user User) error {
 	membershipType := int(membershipData["Response"].(map[string]interface{})["destinyMemberships"].([]interface{})[0].(map[string]interface{})["membershipType"].(float64))
 	destinyMembershipId := membershipData["Response"].(map[string]interface{})["destinyMemberships"].([]interface{})[0].(map[string]interface{})["membershipId"].(string)
 
-	profile, err, profileTime := getProfile(httpClient, destinyMembershipId, membershipType)
+	profile, profileTime, err := getProfile(httpClient, destinyMembershipId, membershipType)
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting profile: %s\n", requestId, err)
 		return err
@@ -38,19 +38,19 @@ func checkUserShaders(user User) error {
 	log.Printf("(Request ID: %s) Getting Bungie profile took %s\n", requestId, profileTime)
 
 	missingShadersTime := time.Now()
-	missingCollectibles := getMissingCollectibles(profile)
-	missingShaders := getMissingAdaShaders(missingCollectibles)
+	missingCollectibleShaders := getMissingCollectibleShaders(profile)
+	missingAdaShaders := getMissingAdaShaders(missingCollectibleShaders)
 
 	log.Printf("(Request ID: %s) Checking missing shaders took %s\n", requestId, time.Since(missingShadersTime))
 
-	if len(missingShaders) == 0 {
+	if len(missingAdaShaders) == 0 {
 		log.Printf("(Request ID: %s) User has no missing shaders available from Ada-1\n", requestId)
 	} else {
-		log.Printf("(Request ID: %s) User has missing shaders available from Ada-1: %v\n", requestId, strings.Join(missingShaders, ", "))
+		log.Printf("(Request ID: %s) User has missing shaders available from Ada-1: %v\n", requestId, strings.Join(missingAdaShaders, ", "))
 	}
 
 	if os.Getenv("SEND_MESSAGES") == "true" {
-		directMessageContent := buildDirectMessageContent(missingShaders)
+		directMessageContent := buildDirectMessageContent(missingAdaShaders)
 
 		if directMessageContent != "" {
 			dmChannel, err := discord.UserChannelCreate(strconv.FormatInt(int64(user.DiscordId), 10))
@@ -76,27 +76,29 @@ func checkUserShaders(user User) error {
 	return nil
 }
 
-func getMissingCollectibles(profile map[string]interface{}) []string {
-	var missingCollectibles []string
+func getMissingCollectibleShaders(profile map[string]interface{}) []string {
+	var missingCollectibleShaders []string
 	var notAcquired = 1
 
-	for collectible, state := range profile["Response"].(map[string]interface{})["profileCollectibles"].(map[string]interface{})["data"].(map[string]interface{})["collectibles"].(map[string]interface{}) {
-		if _, isShader := masterShadersList[collectible]; isShader {
+	var collectibles = profile["Response"].(map[string]interface{})["profileCollectibles"].(map[string]interface{})["data"].(map[string]interface{})["collectibles"].(map[string]interface{})
+
+	for collectibleHash, state := range collectibles {
+		if _, isShader := masterShadersList[collectibleHash]; isShader {
 			stateValue := int(state.(map[string]interface{})["state"].(float64))
 			if stateValue&notAcquired == 1 {
-				missingCollectibles = append(missingCollectibles, masterShadersList[collectible].(map[string]interface{})["hash"].(string))
+				missingCollectibleShaders = append(missingCollectibleShaders, masterShadersList[collectibleHash].(map[string]interface{})["hash"].(string))
 			}
 		}
 	}
 
-	return missingCollectibles
+	return missingCollectibleShaders
 }
 
-func getMissingAdaShaders(missingCollectibles []string) []string {
+func getMissingAdaShaders(missingCollectibleShaders []string) []string {
 	var missingAdaShaders []string
 
 	for shaderHash, shaderInfo := range vendorShadersMap {
-		for _, missingCollectible := range missingCollectibles {
+		for _, missingCollectible := range missingCollectibleShaders {
 			if missingCollectible == shaderHash {
 				missingAdaShaders = append(missingAdaShaders, shaderInfo.(map[string]interface{})["name"].(string))
 				break

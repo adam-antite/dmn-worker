@@ -130,13 +130,14 @@ func scan(usersChannel chan<- User) {
 	}
 
 	log.Println("finished scanning.")
+	log.Printf("user count: %d", len(results))
 }
 
 func consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
 		bungieLimiter.Take()
-		err := checkUserShaders(user)
+		err := processUser(user)
 		if err != nil {
 			panic(err)
 		}

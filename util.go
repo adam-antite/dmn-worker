@@ -39,7 +39,7 @@ func getPreviousTuesday() string {
 	todayCurrentTimeInt, _ := strconv.ParseInt(todayCurrentTime, 10, 32)
 
 	tuesdayDelta := todayIndex - tuesdayIndex
-	if todayCurrentTimeInt < 1700 && todayIndex == tuesdayIndex {
+	if todayCurrentTimeInt < 1700 && todayIndex == tuesdayIndex { // if its tuesday but before destiny reset
 		tuesdayDistance = 7
 	} else if tuesdayDelta < 0 {
 		tuesdayDistance = 7 + tuesdayDelta

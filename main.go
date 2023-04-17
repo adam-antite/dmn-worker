@@ -43,6 +43,7 @@ var masterShadersList map[string]interface{}
 type User struct {
 	DiscordId          float64 `json:"discord_id"`
 	BungieMembershipId float64 `json:"bungie_membership_id"`
+	Ada1               bool    `json:"ada_1"`
 	CreatedAt          string  `json:"created_at"`
 }
 

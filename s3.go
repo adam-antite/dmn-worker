@@ -78,10 +78,18 @@ func getMasterShaderList() map[string]interface{} {
 	return result
 }
 
-func uploadLogs(file *os.File) {
+func uploadLogs(filePath string) {
+	file, err := os.Open(filePath)
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Printf("Error closing log file: " + err.Error())
+		}
+	}(file)
+
 	_, fileName := filepath.Split(file.Name())
 
-	_, err := s3uploader.Upload(context.Background(), &s3.PutObjectInput{
+	_, err = s3uploader.Upload(context.TODO(), &s3.PutObjectInput{
 		Bucket: aws.String("dmn-storage"),
 		Key:    aws.String("logs/" + fileName),
 		Body:   file,
@@ -90,5 +98,6 @@ func uploadLogs(file *os.File) {
 		log.Printf("error uploading file to s3: %s", err)
 		return
 	}
+
 	log.Println("log file successfully uploaded to s3")
 }

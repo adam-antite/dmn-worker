@@ -173,12 +173,14 @@ func track(name string) func() {
 
 	return func() {
 		defer func(logFile *os.File) {
-			if *isRunningInContainer {
-				uploadLogs(logFile)
-			}
+			logFileName := logFile.Name()
 			err := logFile.Close()
 			if err != nil {
 				log.Printf("Error closing log file: " + err.Error())
+			}
+
+			if *isRunningInContainer {
+				uploadLogs(logFileName)
 			}
 		}(logFile)
 

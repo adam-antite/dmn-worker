@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func processUser(user User) error {
+func ProcessUser(user User) error {
 	start := time.Now()
 	requestId := uuid.New().String()
 	httpClient := resty.New()
@@ -88,10 +88,10 @@ func getMissingCollectibleShaders(profile map[string]interface{}) []string {
 	var collectibles = profile["Response"].(map[string]interface{})["profileCollectibles"].(map[string]interface{})["data"].(map[string]interface{})["collectibles"].(map[string]interface{})
 
 	for collectibleHash, state := range collectibles {
-		if _, isShader := masterShadersList[collectibleHash]; isShader {
+		if _, isShader := storageManager.masterShadersList[collectibleHash]; isShader {
 			stateValue := int(state.(map[string]interface{})["state"].(float64))
 			if stateValue&notAcquired == 1 {
-				missingCollectibleShaders = append(missingCollectibleShaders, masterShadersList[collectibleHash].(map[string]interface{})["hash"].(string))
+				missingCollectibleShaders = append(missingCollectibleShaders, storageManager.masterShadersList[collectibleHash].(map[string]interface{})["hash"].(string))
 			}
 		}
 	}
@@ -102,7 +102,7 @@ func getMissingCollectibleShaders(profile map[string]interface{}) []string {
 func getMissingAdaShaders(missingCollectibleShaders []string) []string {
 	var missingAdaShaders []string
 
-	for shaderHash, shaderInfo := range vendorShadersMap {
+	for shaderHash, shaderInfo := range storageManager.vendorShaders {
 		for _, missingCollectible := range missingCollectibleShaders {
 			if missingCollectible == shaderHash {
 				missingAdaShaders = append(missingAdaShaders, shaderInfo.(map[string]interface{})["name"].(string))

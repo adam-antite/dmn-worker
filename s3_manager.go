@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 )
 
-type StorageManager struct {
+type S3Manager struct {
 	client            *s3.Client
 	downloader        *manager.Downloader
 	uploader          *manager.Uploader
@@ -22,7 +22,7 @@ type StorageManager struct {
 	masterShadersList map[string]interface{}
 }
 
-func NewStorageManager() (*StorageManager, error) {
+func NewS3Manager() (*S3Manager, error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
 		log.Println("error loading s3 config: ", err)
@@ -31,7 +31,7 @@ func NewStorageManager() (*StorageManager, error) {
 
 	client := s3.NewFromConfig(cfg)
 
-	s := &StorageManager{
+	s := &S3Manager{
 		client:     client,
 		downloader: manager.NewDownloader(client),
 		uploader:   manager.NewUploader(client),
@@ -43,7 +43,7 @@ func NewStorageManager() (*StorageManager, error) {
 	return s, nil
 }
 
-func (s *StorageManager) getVendorShaders() map[string]interface{} {
+func (s *S3Manager) getVendorShaders() map[string]interface{} {
 	file, _ := CreateFile("json-data", "vendor-shaders.json")
 	defer func(file *os.File) {
 		err := file.Close()
@@ -77,7 +77,7 @@ func (s *StorageManager) getVendorShaders() map[string]interface{} {
 	return result
 }
 
-func (s *StorageManager) getMasterShaderList() map[string]interface{} {
+func (s *S3Manager) getMasterShaderList() map[string]interface{} {
 	file, _ := CreateFile("json-data", "master-shader-collectible-list.json")
 	defer func(file *os.File) {
 		err := file.Close()
@@ -109,7 +109,7 @@ func (s *StorageManager) getMasterShaderList() map[string]interface{} {
 	return result
 }
 
-func (s *StorageManager) UploadLogs(filePath string) {
+func (s *S3Manager) UploadLogs(filePath string) {
 	file, err := os.Open(filePath)
 	defer func(file *os.File) {
 		err := file.Close()

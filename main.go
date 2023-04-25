@@ -22,6 +22,7 @@ import (
 var (
 	bungieLimiter        ratelimit.Limiter
 	messageCount         int
+	userCount            int
 	currentTime          string
 	consumerWorkerCount  int64
 	isRunningInContainer *bool
@@ -31,7 +32,7 @@ var (
 	scanWg sync.WaitGroup
 
 	discord        *discordgo.Session
-	storageManager *StorageManager
+	storageManager *S3Manager
 	supabase       *supa.Client
 )
 
@@ -62,7 +63,7 @@ func init() {
 
 	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
-	storageManager, err = NewStorageManager()
+	storageManager, err = NewS3Manager()
 	if err != nil {
 		log.Println("error creating storage manager: ", err)
 	}
@@ -77,7 +78,7 @@ func init() {
 }
 
 func main() {
-	defer track("main")()
+	defer track()()
 
 	usersChannel := make(chan User)
 
@@ -104,6 +105,7 @@ func scan(usersChannel chan<- User) {
 
 	err := supabase.DB.From("users").Select("*").Execute(&results)
 	if err != nil {
+		log.Println("error querying users table: ", err)
 		panic(err)
 	}
 
@@ -123,8 +125,10 @@ func scan(usersChannel chan<- User) {
 		usersChannel <- user
 	}
 
+	userCount = len(results)
+
 	log.Println("finished scanning.")
-	log.Printf("user count: %d", len(results))
+	log.Printf("user count: %d", userCount)
 }
 
 func consume(users <-chan User) {
@@ -138,7 +142,7 @@ func consume(users <-chan User) {
 	}
 }
 
-func track(name string) func() {
+func track() func() {
 	var logFilePath string
 
 	start := time.Now()
@@ -177,6 +181,11 @@ func track(name string) func() {
 
 		executionTime := time.Since(start)
 		consumptionRate := executionTime.Seconds() / float64(messageCount)
-		log.Printf("%s\n========\nExecution time: %s\nProcessed users: %d\nProcessing rate: %.2f seconds per user\n========\n", name, executionTime.Truncate(time.Millisecond), messageCount, consumptionRate)
+		log.Printf("\n========\n"+
+			"Execution time: %s\n"+
+			"Total users: %d\n"+
+			"Processed users: %d\n"+
+			"Processing rate: %.2f seconds per user\n"+
+			"========\n", executionTime.Truncate(time.Millisecond), userCount, messageCount, consumptionRate)
 	}
 }

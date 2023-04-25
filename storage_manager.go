@@ -37,13 +37,13 @@ func NewStorageManager() (*StorageManager, error) {
 		uploader:   manager.NewUploader(client),
 	}
 
-	s.vendorShaders = s.GetVendorShaders()
-	s.masterShadersList = s.GetMasterShaderList()
+	s.vendorShaders = s.getVendorShaders()
+	s.masterShadersList = s.getMasterShaderList()
 
 	return s, nil
 }
 
-func (s *StorageManager) GetVendorShaders() map[string]interface{} {
+func (s *StorageManager) getVendorShaders() map[string]interface{} {
 	file, _ := CreateFile("json-data", "vendor-shaders.json")
 	defer func(file *os.File) {
 		err := file.Close()
@@ -77,7 +77,7 @@ func (s *StorageManager) GetVendorShaders() map[string]interface{} {
 	return result
 }
 
-func (s *StorageManager) GetMasterShaderList() map[string]interface{} {
+func (s *StorageManager) getMasterShaderList() map[string]interface{} {
 	file, _ := CreateFile("json-data", "master-shader-collectible-list.json")
 	defer func(file *os.File) {
 		err := file.Close()

@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func processUser(user User) error {
+func ProcessUser(user User) error {
 	start := time.Now()
 	requestId := uuid.New().String()
 	httpClient := resty.New()

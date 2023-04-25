@@ -19,20 +19,21 @@ import (
 	"time"
 )
 
-var bungieLimiter ratelimit.Limiter
-var messageCount int
-var currentTime string
-var consumerWorkerCount int64
-var isRunningInContainer *bool
+var (
+	bungieLimiter        ratelimit.Limiter
+	messageCount         int
+	currentTime          string
+	consumerWorkerCount  int64
+	isRunningInContainer *bool
+	err                  error
 
-var wg sync.WaitGroup
-var scanWg sync.WaitGroup
+	wg     sync.WaitGroup
+	scanWg sync.WaitGroup
 
-var discord *discordgo.Session
-var storageManager *StorageManager
-var supabase *supa.Client
-
-var usersChannel chan User
+	discord        *discordgo.Session
+	storageManager *StorageManager
+	supabase       *supa.Client
+)
 
 type User struct {
 	DiscordId          float64 `json:"discord_id"`
@@ -61,7 +62,6 @@ func init() {
 
 	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
-	var err error
 	storageManager, err = NewStorageManager()
 	if err != nil {
 		log.Println("error creating storage manager: ", err)
@@ -79,7 +79,7 @@ func init() {
 func main() {
 	defer track("main")()
 
-	usersChannel = make(chan User)
+	usersChannel := make(chan User)
 
 	scanWg.Add(1)
 	go scan(usersChannel)
@@ -97,6 +97,7 @@ func main() {
 
 func scan(usersChannel chan<- User) {
 	defer scanWg.Done()
+
 	var results []map[string]interface{}
 
 	log.Println("scanning users table...")
@@ -130,7 +131,7 @@ func consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
 		bungieLimiter.Take()
-		err := processUser(user)
+		err := ProcessUser(user)
 		if err != nil {
 			panic(err)
 		}

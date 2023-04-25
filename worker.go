@@ -20,6 +20,11 @@ func processUser(user User) error {
 		SetRetryWaitTime(5 * time.Second).
 		SetRetryMaxWaitTime(20 * time.Second)
 
+	if user.BungieMembershipId == 0 {
+		log.Printf("(Request ID: %s) User has not linked Bungie account, skipping user: %d\n", requestId, int64(user.DiscordId))
+		return nil
+	}
+
 	membershipData, membershipDataTime, err := getMembershipData(httpClient, strconv.FormatInt(int64(user.BungieMembershipId), 10))
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting Bungie membership data: %s\n", requestId, err)

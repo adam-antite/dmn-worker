@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func createFile(dirName string, fileName string) (*os.File, error) {
+func CreateFile(dirName string, fileName string) (*os.File, error) {
 	currentDir, _ := os.Getwd()
 	dirPath := currentDir + "/" + dirName + "/"
 	filePath := dirPath + fileName
@@ -29,7 +29,7 @@ func createFile(dirName string, fileName string) (*os.File, error) {
 	return file, nil
 }
 
-func getPreviousTuesday() string {
+func GetPreviousTuesday() string {
 	var tuesdayDistance int
 	var tuesdayIndex = 2
 

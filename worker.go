@@ -20,6 +20,11 @@ func processUser(user User) error {
 		SetRetryWaitTime(5 * time.Second).
 		SetRetryMaxWaitTime(20 * time.Second)
 
+	if user.BungieMembershipId == 0 {
+		log.Printf("(Request ID: %s) User has not linked Bungie account, skipping user: %d\n", requestId, int64(user.DiscordId))
+		return nil
+	}
+
 	membershipData, membershipDataTime, err := getMembershipData(httpClient, strconv.FormatInt(int64(user.BungieMembershipId), 10))
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting Bungie membership data: %s\n", requestId, err)
@@ -83,10 +88,10 @@ func getMissingCollectibleShaders(profile map[string]interface{}) []string {
 	var collectibles = profile["Response"].(map[string]interface{})["profileCollectibles"].(map[string]interface{})["data"].(map[string]interface{})["collectibles"].(map[string]interface{})
 
 	for collectibleHash, state := range collectibles {
-		if _, isShader := masterShadersList[collectibleHash]; isShader {
+		if _, isShader := storageManager.masterShadersList[collectibleHash]; isShader {
 			stateValue := int(state.(map[string]interface{})["state"].(float64))
 			if stateValue&notAcquired == 1 {
-				missingCollectibleShaders = append(missingCollectibleShaders, masterShadersList[collectibleHash].(map[string]interface{})["hash"].(string))
+				missingCollectibleShaders = append(missingCollectibleShaders, storageManager.masterShadersList[collectibleHash].(map[string]interface{})["hash"].(string))
 			}
 		}
 	}
@@ -97,7 +102,7 @@ func getMissingCollectibleShaders(profile map[string]interface{}) []string {
 func getMissingAdaShaders(missingCollectibleShaders []string) []string {
 	var missingAdaShaders []string
 
-	for shaderHash, shaderInfo := range vendorShadersMap {
+	for shaderHash, shaderInfo := range storageManager.vendorShaders {
 		for _, missingCollectible := range missingCollectibleShaders {
 			if missingCollectible == shaderHash {
 				missingAdaShaders = append(missingAdaShaders, shaderInfo.(map[string]interface{})["name"].(string))

@@ -30,7 +30,7 @@ func ProcessUser(user User) error {
 		log.Printf("(Request ID: %s) Error getting Bungie membership data: %s\n", requestId, err)
 		return err
 	}
-	log.Printf("(Request ID: %s) Getting Bungie membership data took %s\n", requestId, membershipDataTime)
+	log.Printf("(Request ID: %s) Getting Bungie membership data took %s\n", requestId, membershipDataTime.Truncate(time.Millisecond))
 
 	membershipType := int(membershipData["Response"].(map[string]interface{})["destinyMemberships"].([]interface{})[0].(map[string]interface{})["membershipType"].(float64))
 	destinyMembershipId := membershipData["Response"].(map[string]interface{})["destinyMemberships"].([]interface{})[0].(map[string]interface{})["membershipId"].(string)
@@ -40,13 +40,13 @@ func ProcessUser(user User) error {
 		log.Printf("(Request ID: %s) Error getting profile: %s\n", requestId, err)
 		return err
 	}
-	log.Printf("(Request ID: %s) Getting Bungie profile took %s\n", requestId, profileTime)
+	log.Printf("(Request ID: %s) Getting Bungie profile took %s\n", requestId, profileTime.Truncate(time.Millisecond))
 
 	missingShadersTime := time.Now()
 	missingCollectibleShaders := getMissingCollectibleShaders(profile)
 	missingAdaShaders := getMissingAdaShaders(missingCollectibleShaders)
 
-	log.Printf("(Request ID: %s) Checking missing shaders took %s\n", requestId, time.Since(missingShadersTime))
+	log.Printf("(Request ID: %s) Checking missing shaders took %s\n", requestId, time.Since(missingShadersTime).Truncate(time.Millisecond))
 
 	if len(missingAdaShaders) == 0 {
 		log.Printf("(Request ID: %s) User has no missing shaders available from Ada-1\n", requestId)
@@ -76,7 +76,7 @@ func ProcessUser(user User) error {
 		log.Printf("(Request ID: %s) Messaging disabled, skipped sending message to user %d\n", requestId, int64(user.DiscordId))
 	}
 
-	log.Printf("(Request ID: %s) Finished in %s\n", requestId, time.Since(start))
+	log.Printf("(Request ID: %s) Finished in %s\n", requestId, time.Since(start).Truncate(time.Millisecond))
 	messageCount++
 	return nil
 }

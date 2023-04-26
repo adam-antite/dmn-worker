@@ -96,6 +96,7 @@ func main() {
 
 func scan() {
 	defer wg.Done()
+	start := time.Now()
 
 	var results []map[string]interface{}
 
@@ -126,7 +127,8 @@ func scan() {
 		usersChannel <- user
 	}
 
-	log.Println("finished scanning.")
+	executionTime := time.Since(start)
+	log.Printf("finished scanning after %s", executionTime.Truncate(time.Millisecond))
 	log.Printf("user count: %d", userCount)
 }
 
@@ -171,7 +173,7 @@ func track() func() {
 			logFileName := logFile.Name()
 			err := logFile.Close()
 			if err != nil {
-				log.Printf("Error closing log file: " + err.Error())
+				log.Printf("error closing log file: " + err.Error())
 			}
 
 			if *isRunningInContainer {
@@ -185,7 +187,7 @@ func track() func() {
 			"Execution time: %s\n"+
 			"Total users: %d\n"+
 			"Processed users: %d\n"+
-			"Processing rate: %.2f seconds per user\n"+
-			"========\n", executionTime.Truncate(time.Millisecond), userCount, messageCount, consumptionRate)
+			"Processing rate: %s per user\n"+
+			"========\n", executionTime.Truncate(time.Millisecond), userCount, messageCount, time.Duration(consumptionRate*float64(time.Second)).Truncate(time.Millisecond))
 	}
 }

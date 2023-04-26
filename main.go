@@ -28,12 +28,13 @@ var (
 	isRunningInContainer *bool
 	err                  error
 
-	wg     sync.WaitGroup
-	scanWg sync.WaitGroup
+	wg sync.WaitGroup
 
 	discord        *discordgo.Session
 	storageManager *S3Manager
 	supabase       *supa.Client
+
+	usersChannel chan User
 )
 
 type User struct {
@@ -80,24 +81,21 @@ func init() {
 func main() {
 	defer track()()
 
-	usersChannel := make(chan User)
-
-	scanWg.Add(1)
-	go scan(usersChannel)
+	wg.Add(1)
+	go scan()
+	wg.Wait()
 
 	for i := 1; i <= int(consumerWorkerCount); i++ {
 		wg.Add(1)
 		go consume(usersChannel)
 	}
 
-	scanWg.Wait()
 	close(usersChannel)
-
 	wg.Wait()
 }
 
-func scan(usersChannel chan<- User) {
-	defer scanWg.Done()
+func scan() {
+	defer wg.Done()
 
 	var results []map[string]interface{}
 
@@ -108,6 +106,9 @@ func scan(usersChannel chan<- User) {
 		log.Println("error querying users table: ", err)
 		panic(err)
 	}
+
+	userCount = len(results)
+	usersChannel = make(chan User, userCount)
 
 	for _, data := range results {
 		jsonData, err := json.Marshal(data)
@@ -125,8 +126,6 @@ func scan(usersChannel chan<- User) {
 		usersChannel <- user
 	}
 
-	userCount = len(results)
-
 	log.Println("finished scanning.")
 	log.Printf("user count: %d", userCount)
 }
@@ -137,6 +136,7 @@ func consume(users <-chan User) {
 		bungieLimiter.Take()
 		err := ProcessUser(user)
 		if err != nil {
+			log.Println("error processing user: ", err)
 			panic(err)
 		}
 	}

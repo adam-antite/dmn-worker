@@ -207,7 +207,6 @@ func track() func() {
 			ProcessingRate: processingRate.Seconds(),
 			ExecutionTime:  executionTime.Seconds(),
 		}
-		log.Printf("%+v", row)
 		err = supabase.DB.From("telemetry").Update(row).Eq("id", jobId).Execute(&results)
 		if err != nil {
 			log.Println("error updating job telemetry: ", err)

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	supa "github.com/nedpals/supabase-go"
 	"go.uber.org/ratelimit"
@@ -20,6 +21,7 @@ import (
 )
 
 var (
+	jobId                string
 	bungieLimiter        ratelimit.Limiter
 	messageCount         int
 	userCount            int
@@ -37,15 +39,9 @@ var (
 	usersChannel chan User
 )
 
-type User struct {
-	DiscordId          float64 `json:"discord_id"`
-	BungieMembershipId float64 `json:"bungie_membership_id"`
-	Ada1               bool    `json:"ada_1"`
-	CreatedAt          string  `json:"created_at"`
-}
-
 func init() {
-	log.Println("starting worker...")
+	jobId = uuid.New().String()
+	log.Println("starting worker with id: ", jobId)
 
 	isRunningInContainer = flag.Bool("container", false, "running inside container: true or false")
 	flag.Parse()
@@ -153,6 +149,20 @@ func track() func() {
 		return nil
 	}
 
+	var results []map[string]interface{}
+	telem := Telemetry{
+		JobId:       jobId,
+		StartTime:   &start,
+		WorkerCount: consumerWorkerCount,
+	}
+	err = supabase.DB.From("telemetry").Insert(telem).Execute(&results)
+	if err != nil {
+		log.Println("error creating job telemetry record: ", err)
+		log.Println(results)
+	} else {
+		log.Println("successfully created job telemetry record")
+	}
+
 	//goland:noinspection GoBoolExpressions
 	if runtime.GOOS == "windows" {
 		logFilePath = fmt.Sprintf("./logs/log_%s.log", currentTime)
@@ -181,13 +191,28 @@ func track() func() {
 			}
 		}(logFile)
 
-		executionTime := time.Since(start)
+		executionTime := time.Since(start).Truncate(time.Millisecond)
 		consumptionRate := executionTime.Seconds() / float64(messageCount)
+		processingRate := time.Duration(consumptionRate * float64(time.Second)).Truncate(time.Millisecond)
 		log.Printf("\n========\n"+
 			"Execution time: %s\n"+
 			"Total users: %d\n"+
 			"Processed users: %d\n"+
 			"Processing rate: %s per user\n"+
-			"========\n", executionTime.Truncate(time.Millisecond), userCount, messageCount, time.Duration(consumptionRate*float64(time.Second)).Truncate(time.Millisecond))
+			"========\n", executionTime, userCount, messageCount, processingRate)
+
+		row := Telemetry{
+			TotalUsers:     int64(userCount),
+			ProcessedUsers: int64(messageCount),
+			ProcessingRate: processingRate.Seconds(),
+			ExecutionTime:  executionTime.Seconds(),
+		}
+		log.Printf("%+v", row)
+		err = supabase.DB.From("telemetry").Update(row).Eq("id", jobId).Execute(&results)
+		if err != nil {
+			log.Println("error updating job telemetry: ", err)
+		} else {
+			log.Println("successfully uploaded job telemetry to db")
+		}
 	}
 }

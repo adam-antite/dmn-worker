@@ -96,7 +96,7 @@ func (s *S3Manager) getMasterShaderList() map[string]interface{} {
 		log.Println("error retrieving master shader list from S3.")
 		log.Fatal(err)
 	}
-	log.Println("Downloaded", file.Name(), numBytes, "bytes")
+	log.Println("downloaded", file.Name(), numBytes, "bytes")
 
 	byteValues, _ := io.ReadAll(file)
 	var result map[string]interface{}

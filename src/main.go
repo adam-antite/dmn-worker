@@ -157,9 +157,9 @@ func track() func() {
 	err = supabase.DB.From("telemetry").Insert(telem).Execute(&results)
 	if err != nil {
 		log.Println("error creating job telemetry record: ", err)
-		log.Println(results)
 	} else {
 		log.Println("successfully created job telemetry record")
+		log.Println(results)
 	}
 
 	//goland:noinspection GoBoolExpressions

@@ -12,6 +12,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.4.0
 	github.com/nedpals/supabase-go v0.2.0
+	github.com/tidwall/gjson v1.17.1
 	go.uber.org/ratelimit v0.2.0
 )
 
@@ -35,10 +36,10 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/nedpals/postgrest-go v0.1.3 // indirect
-	github.com/stretchr/testify v1.8.1 // indirect
-	golang.org/x/crypto v0.8.0 // indirect
-	golang.org/x/net v0.9.0 // indirect
-	golang.org/x/sys v0.7.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	golang.org/x/crypto v0.24.0 // indirect
+	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
 )

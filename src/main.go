@@ -43,7 +43,7 @@ func init() {
 	messageCount = 0
 	jobId = uuid.New().String()
 	bungieLimiter = ratelimit.New(25)
-	log.Println("starting worker with id: ", jobId)
+	log.Println("starting worker with id:", jobId)
 
 	isRunningInContainer = flag.Bool("container", false, "running inside container: true or false")
 	flag.Parse()
@@ -159,7 +159,7 @@ func track() func() {
 		log.Println("error creating job telemetry record: ", err)
 	} else {
 		log.Println("successfully created job telemetry record")
-		log.Println(results)
+		//log.Println(results)
 	}
 
 	//goland:noinspection GoBoolExpressions

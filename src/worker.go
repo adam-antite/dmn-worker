@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 	"log"
 	"os"
 	"strconv"
@@ -25,17 +27,18 @@ func ProcessUser(user User) error {
 		return nil
 	}
 
-	membershipData, membershipDataTime, err := getMembershipData(httpClient, strconv.FormatInt(int64(user.BungieMembershipId), 10))
+	membershipData, membershipDataTime, err := getDestinyMembershipData(httpClient, strconv.FormatFloat(user.BungieMembershipId, 'f', -1, 64))
+
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting Bungie membership data: %s\n", requestId, err)
 		return err
 	}
 	log.Printf("(Request ID: %s) Getting Bungie membership data took %s\n", requestId, membershipDataTime.Truncate(time.Millisecond))
 
-	membershipType := int(membershipData["Response"].(map[string]interface{})["destinyMemberships"].([]interface{})[0].(map[string]interface{})["membershipType"].(float64))
-	destinyMembershipId := membershipData["Response"].(map[string]interface{})["destinyMemberships"].([]interface{})[0].(map[string]interface{})["membershipId"].(string)
+	membershipType := gjson.Get(membershipData, "Response.destinyMemberships.0.membershipType").Int()
+	destinyMembershipId := gjson.Get(membershipData, "Response.destinyMemberships.0.membershipId").String()
 
-	profile, profileTime, err := getProfile(httpClient, destinyMembershipId, membershipType)
+	profile, profileTime, err := getDestinyProfile(httpClient, destinyMembershipId, membershipType)
 	if err != nil {
 		log.Printf("(Request ID: %s) Error getting profile: %s\n", requestId, err)
 		return err
@@ -81,11 +84,15 @@ func ProcessUser(user User) error {
 	return nil
 }
 
-func getMissingCollectibleShaders(profile map[string]interface{}) []string {
+func getMissingCollectibleShaders(profile string) []string {
 	var missingCollectibleShaders []string
+	var collectibles map[string]interface{}
 	var notAcquired = 1
 
-	var collectibles = profile["Response"].(map[string]interface{})["profileCollectibles"].(map[string]interface{})["data"].(map[string]interface{})["collectibles"].(map[string]interface{})
+	err := json.Unmarshal([]byte(gjson.Get(profile, "Response.profileCollectibles.data.collectibles").String()), &collectibles)
+	if err != nil {
+		log.Println("Error unmarshalling collectibles from profile: ", err)
+	}
 
 	for collectibleHash, state := range collectibles {
 		if _, isShader := storageManager.masterShadersList[collectibleHash]; isShader {

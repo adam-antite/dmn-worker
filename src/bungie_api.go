@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/go-resty/resty/v2"
 	"log"
@@ -9,9 +8,9 @@ import (
 	"time"
 )
 
-func getMembershipData(httpClient *resty.Client, bungieMembershipId string) (map[string]interface{}, time.Duration, error) {
+func getDestinyMembershipData(httpClient *resty.Client, bungieMembershipId string) (string, time.Duration, error) {
+	var result string
 	apiKey := os.Getenv("BUNGIE_API_KEY")
-	var result map[string]interface{}
 
 	bungieLimiter.Take()
 	membershipTime := time.Now()
@@ -20,18 +19,15 @@ func getMembershipData(httpClient *resty.Client, bungieMembershipId string) (map
 		Get(fmt.Sprintf("https://www.bungie.net/Platform/User/GetMembershipsById/%s/-1", bungieMembershipId))
 	if err != nil {
 		log.Println("Error getting membership data: ", err)
-		return nil, time.Since(membershipTime), err
+		return "", time.Since(membershipTime), err
 	}
-	err = json.Unmarshal(resp.Body(), &result)
-	if err != nil {
-		log.Println("Error unmarshalling membership data: ", err)
-		return nil, time.Since(membershipTime), err
-	}
+	result = string(resp.Body())
+
 	return result, time.Since(membershipTime), nil
 }
 
-func getProfile(httpClient *resty.Client, destinyMembershipId string, membershipType int) (map[string]interface{}, time.Duration, error) {
-	var result map[string]interface{}
+func getDestinyProfile(httpClient *resty.Client, destinyMembershipId string, membershipType int64) (string, time.Duration, error) {
+	var result string
 	apiKey := os.Getenv("BUNGIE_API_KEY")
 
 	bungieLimiter.Take()
@@ -48,13 +44,9 @@ func getProfile(httpClient *resty.Client, destinyMembershipId string, membership
 	}
 	if err != nil {
 		log.Println("Error getting profile: ", err)
-		return nil, time.Since(profileTime), err
+		return "", time.Since(profileTime), err
 	}
-	err = json.Unmarshal(resp.Body(), &result)
-	if err != nil {
-		log.Println("Error unmarshalling profile: ", err)
-		return nil, time.Since(profileTime), err
-	}
+	result = string(resp.Body())
 
 	//file, _ := json.MarshalIndent(result, "", " ")
 	//_ = os.WriteFile("profile.json", file, 0644)

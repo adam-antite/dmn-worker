@@ -40,19 +40,18 @@ var (
 )
 
 func init() {
+	messageCount = 0
 	jobId = uuid.New().String()
-	log.Println("starting worker with id: ", jobId)
+	bungieLimiter = ratelimit.New(25)
+	log.Println("starting worker with id:", jobId)
 
 	isRunningInContainer = flag.Bool("container", false, "running inside container: true or false")
 	flag.Parse()
 
-	messageCount = 0
-	bungieLimiter = ratelimit.New(25)
-
 	if !*isRunningInContainer {
 		err := godotenv.Load()
 		if err != nil {
-			log.Fatal("Error loading .env file")
+			log.Fatal("error loading .env file")
 		}
 	}
 
@@ -68,7 +67,7 @@ func init() {
 	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
 	discord, err = discordgo.New("Bot " + discordBotToken)
 	if err != nil {
-		log.Println("Error initializing discord bot: " + err.Error())
+		log.Println("error initializing discord bot: " + err.Error())
 	}
 
 	currentTime = time.Now().Format(time.RFC3339)
@@ -110,14 +109,14 @@ func scan() {
 	for _, data := range results {
 		jsonData, err := json.Marshal(data)
 		if err != nil {
-			log.Println("error marshaling user data into json")
+			log.Println("error marshalling user data into json")
 			panic(err)
 		}
 
 		user := User{}
 		err = json.Unmarshal(jsonData, &user)
 		if err != nil {
-			log.Println("error unmarshaling user data into user struct")
+			log.Println("error unmarshalling user data into user struct")
 		}
 
 		usersChannel <- user
@@ -158,9 +157,9 @@ func track() func() {
 	err = supabase.DB.From("telemetry").Insert(telem).Execute(&results)
 	if err != nil {
 		log.Println("error creating job telemetry record: ", err)
-		log.Println(results)
 	} else {
 		log.Println("successfully created job telemetry record")
+		//log.Println(results)
 	}
 
 	//goland:noinspection GoBoolExpressions
@@ -201,13 +200,13 @@ func track() func() {
 			"Processing rate: %s per user\n"+
 			"========\n", executionTime, userCount, messageCount, processingRate)
 
-		row := Telemetry{
+		telem = Telemetry{
 			TotalUsers:     int64(userCount),
 			ProcessedUsers: int64(messageCount),
 			ProcessingRate: processingRate.Seconds(),
 			ExecutionTime:  executionTime.Seconds(),
 		}
-		err = supabase.DB.From("telemetry").Update(row).Eq("id", jobId).Execute(&results)
+		err = supabase.DB.From("telemetry").Update(telem).Eq("id", jobId).Execute(&results)
 		if err != nil {
 			log.Println("error updating job telemetry: ", err)
 		} else {

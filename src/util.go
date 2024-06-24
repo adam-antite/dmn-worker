@@ -31,12 +31,15 @@ func CreateFile(dirName string, fileName string) (*os.File, error) {
 
 func GetPreviousTuesday() string {
 	var tuesdayDistance int
-	var tuesdayIndex = 2
+	var tuesdayIndex = 2 // 0 = Sunday, 1 = Monday, 2 = Tuesday, etc.
 
 	today := time.Now()
 	todayIndex := int(today.Weekday())
-	todayCurrentTime := today.UTC().Format("1504")
-	todayCurrentTimeInt, _ := strconv.ParseInt(todayCurrentTime, 10, 32)
+	todayCurrentTime := today.UTC().Format("1504") // format as HHMM
+	todayCurrentTimeInt, err := strconv.ParseInt(todayCurrentTime, 10, 32)
+	if err != nil {
+		log.Println("Error converting current time to int: ", err)
+	}
 
 	tuesdayDelta := todayIndex - tuesdayIndex
 	if todayCurrentTimeInt < 1700 && todayIndex == tuesdayIndex { // if its tuesday but before destiny reset

@@ -58,7 +58,7 @@ func (c BungieClient) GetDestinyProfile(httpClient *resty.Client, destinyMembers
 		return "", time.Since(profileTime), err
 	}
 	result = string(resp.Body())
-	log.Println("Profile size:", len(resp.Body())/1024, "KB")
+	//log.Println("Profile size:", len(resp.Body())/1024, "KB")
 
 	//file, _ := json.MarshalIndent(result, "", " ")
 	//_ = os.WriteFile("profile.json", file, 0644)

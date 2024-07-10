@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
-	supa "github.com/nedpals/supabase-go"
 	"go.uber.org/ratelimit"
 	"io"
 	"log"
@@ -22,27 +20,36 @@ import (
 
 var (
 	jobId                string
-	bungieLimiter        ratelimit.Limiter
 	messageCount         int
 	userCount            int
 	currentTime          string
-	consumerWorkerCount  int64
 	isRunningInContainer *bool
-	err                  error
-
-	wg sync.WaitGroup
-
-	discord        *discordgo.Session
-	storageManager *S3Manager
-	supabase       *supa.Client
-
-	usersChannel chan User
+	wg                   sync.WaitGroup
 )
+
+type App struct {
+	storageManager StorageManager
+	databaseClient DatabaseClient
+	bungieClient   BungieClient
+	consumerCount  int64
+	discord        *discordgo.Session
+	usersChannel   chan User
+}
+
+func NewApp(storageManager StorageManager, databaseClient DatabaseClient, bungieClient BungieClient, consumerCount int64, discordSession *discordgo.Session) *App {
+	return &App{
+		storageManager: storageManager,
+		databaseClient: databaseClient,
+		bungieClient:   bungieClient,
+		consumerCount:  consumerCount,
+		discord:        discordSession,
+		usersChannel:   make(chan User),
+	}
+}
 
 func init() {
 	messageCount = 0
 	jobId = uuid.New().String()
-	bungieLimiter = ratelimit.New(25)
 	log.Println("starting worker with id:", jobId)
 
 	isRunningInContainer = flag.Bool("container", false, "running inside container: true or false")
@@ -55,83 +62,56 @@ func init() {
 		}
 	}
 
-	consumerWorkerCount, _ = strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
-
-	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
-
-	storageManager, err = NewS3Manager()
-	if err != nil {
-		log.Println("error creating storage manager: ", err)
-	}
-
-	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
-	discord, err = discordgo.New("Bot " + discordBotToken)
-	if err != nil {
-		log.Println("error initializing discord bot: " + err.Error())
-	}
-
 	currentTime = time.Now().Format(time.RFC3339)
 }
 
 func main() {
-	defer track()()
-
-	wg.Add(1)
-	go scan()
-	wg.Wait()
-
-	for i := 1; i <= int(consumerWorkerCount); i++ {
-		wg.Add(1)
-		go consume(usersChannel)
-	}
-
-	close(usersChannel)
-	wg.Wait()
-}
-
-func scan() {
-	defer wg.Done()
-	start := time.Now()
-
-	var results []map[string]interface{}
-
-	log.Println("scanning users table...")
-
-	err := supabase.DB.From("users").Select("*").Execute(&results)
+	storageManager, err := NewS3Manager()
 	if err != nil {
-		log.Println("error querying users table: ", err)
-		panic(err)
+		log.Println("error creating storage manager: ", err)
 	}
 
-	userCount = len(results)
-	usersChannel = make(chan User, userCount)
+	databaseClient := NewSupabaseClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
+	bungieClient := NewBungieClient(ratelimit.New(25))
+	consumerCount, _ := strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
 
-	for _, data := range results {
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			log.Println("error marshalling user data into json")
-			panic(err)
-		}
-
-		user := User{}
-		err = json.Unmarshal(jsonData, &user)
-		if err != nil {
-			log.Println("error unmarshalling user data into user struct")
-		}
-
-		usersChannel <- user
+	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
+	discord, err := discordgo.New("Bot " + discordBotToken)
+	if err != nil {
+		log.Println("error initializing discord bot: " + err.Error())
 	}
 
-	executionTime := time.Since(start)
-	log.Printf("finished scanning after %s", executionTime.Truncate(time.Millisecond))
-	log.Printf("user count: %d", userCount)
+	app := NewApp(storageManager, databaseClient, *bungieClient, consumerCount, discord)
+	app.Run()
 }
 
-func consume(users <-chan User) {
+func (a *App) Run() {
+	defer a.track()()
+
+	users := a.scan()
+
+	for i := 1; i <= int(a.consumerCount); i++ {
+		wg.Add(1)
+		go a.consume(a.usersChannel)
+	}
+
+	for _, user := range users {
+		a.usersChannel <- user
+	}
+
+	close(a.usersChannel)
+	wg.Wait()
+}
+
+func (a *App) scan() []User {
+	return a.databaseClient.GetAllUsers()
+}
+
+func (a *App) consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
-		bungieLimiter.Take()
-		err := ProcessUser(user)
+		//a.bungieClient.apiLimiter.Take()
+		err := a.ProcessUser(user)
 		if err != nil {
 			log.Println("error processing user: ", err)
 			panic(err)
@@ -139,7 +119,7 @@ func consume(users <-chan User) {
 	}
 }
 
-func track() func() {
+func (a *App) track() func() {
 	var logFilePath string
 
 	start := time.Now()
@@ -148,19 +128,12 @@ func track() func() {
 		return nil
 	}
 
-	var results []map[string]interface{}
 	telem := Telemetry{
 		JobId:       jobId,
 		StartTime:   &start,
-		WorkerCount: consumerWorkerCount,
+		WorkerCount: a.consumerCount,
 	}
-	err = supabase.DB.From("telemetry").Insert(telem).Execute(&results)
-	if err != nil {
-		log.Println("error creating job telemetry record: ", err)
-	} else {
-		log.Println("successfully created job telemetry record")
-		//log.Println(results)
-	}
+	a.databaseClient.UpdateTelemetry(telem)
 
 	//goland:noinspection GoBoolExpressions
 	if runtime.GOOS == "windows" {
@@ -186,7 +159,7 @@ func track() func() {
 			}
 
 			if *isRunningInContainer {
-				storageManager.UploadLogs(logFileName)
+				a.storageManager.UploadWorkerLogs(logFileName)
 			}
 		}(logFile)
 
@@ -206,11 +179,6 @@ func track() func() {
 			ProcessingRate: processingRate.Seconds(),
 			ExecutionTime:  executionTime.Seconds(),
 		}
-		err = supabase.DB.From("telemetry").Update(telem).Eq("id", jobId).Execute(&results)
-		if err != nil {
-			log.Println("error updating job telemetry: ", err)
-		} else {
-			log.Println("successfully uploaded job telemetry to db")
-		}
+		a.databaseClient.UpdateTelemetry(telem)
 	}
 }

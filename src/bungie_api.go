@@ -45,7 +45,7 @@ func (c BungieClient) GetDestinyProfile(httpClient *resty.Client, destinyMembers
 	profileTime := time.Now()
 	resp, err := httpClient.R().
 		SetHeader("X-API-Key", apiKey).
-		SetQueryString("components=100,800").
+		SetQueryString("components=100,102,200,201,205,301,305,104,202,800,900").
 		Get(fmt.Sprintf("https://www.bungie.net/Platform/Destiny2/%d/Profile/%s/", membershipType, destinyMembershipId))
 
 	if resp.StatusCode() == 503 {

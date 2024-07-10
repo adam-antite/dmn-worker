@@ -9,12 +9,12 @@ import (
 
 type DatabaseClient interface {
 	GetAllUsers() []User
-	InsertTelemetry(telem Telemetry) error
-	UpdateTelemetry(telem Telemetry) error
+	InsertTelemetry(telem Telemetry)
+	UpdateTelemetry(telem Telemetry)
 }
 
 type SupabaseClient struct {
-	supa *supa.Client
+	client *supa.Client
 }
 
 func NewSupabaseClient(supabaseUrl string, supabaseServiceRoleKey string) *SupabaseClient {
@@ -30,7 +30,7 @@ func (s SupabaseClient) GetAllUsers() []User {
 
 	log.Println("scanning users table...")
 
-	err := supabase.DB.From("users").Select("*").Execute(&results)
+	err := s.client.DB.From("users").Select("*").Execute(&results)
 	if err != nil {
 		log.Println("error querying users table: ", err)
 		panic(err)
@@ -61,8 +61,25 @@ func (s SupabaseClient) GetAllUsers() []User {
 	return users
 }
 
-func (s SupabaseClient) InsertTelemetry(telem Telemetry) error {
+func (s SupabaseClient) InsertTelemetry(telem Telemetry) {
+	var results []map[string]interface{}
+
+	err := s.client.DB.From("telemetry").Insert(telem).Execute(&results)
+	if err != nil {
+		log.Println("error creating job telemetry record: ", err)
+	} else {
+		log.Println("successfully created job telemetry record")
+		//log.Println(results)
+	}
 }
 
-func (s SupabaseClient) UpdateTelemetry(telem Telemetry) error {
+func (s SupabaseClient) UpdateTelemetry(telem Telemetry) {
+	var results []map[string]interface{}
+
+	err := s.client.DB.From("telemetry").Update(telem).Eq("id", jobId).Execute(&results)
+	if err != nil {
+		log.Println("error updating job telemetry: ", err)
+	} else {
+		log.Println("successfully uploaded job telemetry to db")
+	}
 }

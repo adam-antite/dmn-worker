@@ -16,6 +16,8 @@ import (
 
 type StorageManager interface {
 	UploadWorkerLogs(logFileName string)
+	DownloadVendorShaders() map[string]interface{}
+	DownloadMasterShaderList() map[string]interface{}
 	GetVendorShaders() map[string]interface{}
 	GetMasterShaderList() map[string]interface{}
 }
@@ -43,13 +45,13 @@ func NewS3Manager() (*S3Manager, error) {
 		uploader:   manager.NewUploader(client),
 	}
 
-	s.vendorShaders = s.GetVendorShaders()
-	s.masterShadersList = s.GetMasterShaderList()
+	s.vendorShaders = s.DownloadVendorShaders()
+	s.masterShadersList = s.DownloadMasterShaderList()
 
 	return s, nil
 }
 
-func (s *S3Manager) GetVendorShaders() map[string]interface{} {
+func (s *S3Manager) DownloadVendorShaders() map[string]interface{} {
 	file, _ := CreateFile("json-data", "vendor-shaders.json")
 	defer func(file *os.File) {
 		err := file.Close()
@@ -83,7 +85,7 @@ func (s *S3Manager) GetVendorShaders() map[string]interface{} {
 	return result
 }
 
-func (s *S3Manager) GetMasterShaderList() map[string]interface{} {
+func (s *S3Manager) DownloadMasterShaderList() map[string]interface{} {
 	file, _ := CreateFile("json-data", "master-shader-collectible-list.json")
 	defer func(file *os.File) {
 		err := file.Close()
@@ -113,6 +115,14 @@ func (s *S3Manager) GetMasterShaderList() map[string]interface{} {
 	}
 
 	return result
+}
+
+func (s *S3Manager) GetVendorShaders() map[string]interface{} {
+	return s.vendorShaders
+}
+
+func (s *S3Manager) GetMasterShaderList() map[string]interface{} {
+	return s.masterShadersList
 }
 
 func (s *S3Manager) UploadWorkerLogs(filePath string) {

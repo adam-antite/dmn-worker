@@ -3,16 +3,27 @@ package main
 import (
 	"fmt"
 	"github.com/go-resty/resty/v2"
+	"go.uber.org/ratelimit"
 	"log"
 	"os"
 	"time"
 )
 
-func getDestinyMembershipData(httpClient *resty.Client, bungieMembershipId string) (string, time.Duration, error) {
+type BungieClient struct {
+	apiLimiter ratelimit.Limiter
+}
+
+func NewBungieClient(rateLimiter ratelimit.Limiter) *BungieClient {
+	return &BungieClient{
+		apiLimiter: rateLimiter,
+	}
+}
+
+func (c BungieClient) GetDestinyMembershipData(httpClient *resty.Client, bungieMembershipId string) (string, time.Duration, error) {
 	var result string
 	apiKey := os.Getenv("BUNGIE_API_KEY")
 
-	bungieLimiter.Take()
+	c.apiLimiter.Take()
 	membershipTime := time.Now()
 	resp, err := httpClient.R().
 		SetHeader("X-API-Key", apiKey).
@@ -26,11 +37,11 @@ func getDestinyMembershipData(httpClient *resty.Client, bungieMembershipId strin
 	return result, time.Since(membershipTime), nil
 }
 
-func getDestinyProfile(httpClient *resty.Client, destinyMembershipId string, membershipType int64) (string, time.Duration, error) {
+func (c BungieClient) GetDestinyProfile(httpClient *resty.Client, destinyMembershipId string, membershipType int64) (string, time.Duration, error) {
 	var result string
 	apiKey := os.Getenv("BUNGIE_API_KEY")
 
-	bungieLimiter.Take()
+	c.apiLimiter.Take()
 	profileTime := time.Now()
 	resp, err := httpClient.R().
 		SetHeader("X-API-Key", apiKey).
@@ -47,6 +58,7 @@ func getDestinyProfile(httpClient *resty.Client, destinyMembershipId string, mem
 		return "", time.Since(profileTime), err
 	}
 	result = string(resp.Body())
+	log.Println("Profile size:", len(resp.Body())/1024, "KB")
 
 	//file, _ := json.MarshalIndent(result, "", " ")
 	//_ = os.WriteFile("profile.json", file, 0644)

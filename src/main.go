@@ -24,31 +24,26 @@ var (
 	userCount            int
 	currentTime          string
 	isRunningInContainer *bool
-
-	wg sync.WaitGroup
-
-	//discord *discordgo.Session
-	//storageManager *S3Manager
-	//supabase *supa.Client
-
-	usersChannel chan User
+	wg                   sync.WaitGroup
 )
 
 type App struct {
-	storageManager   StorageManager
-	databaseClient   DatabaseClient
-	bungieApiLimiter ratelimit.Limiter
-	consumerCount    int64
-	discord          *discordgo.Session
+	storageManager StorageManager
+	databaseClient DatabaseClient
+	bungieClient   BungieClient
+	consumerCount  int64
+	discord        *discordgo.Session
+	usersChannel   chan User
 }
 
-func NewApp(storageManager StorageManager, databaseClient DatabaseClient, limiter ratelimit.Limiter, consumerCount int64, discordSession *discordgo.Session) *App {
+func NewApp(storageManager StorageManager, databaseClient DatabaseClient, bungieClient BungieClient, consumerCount int64, discordSession *discordgo.Session) *App {
 	return &App{
-		storageManager:   storageManager,
-		databaseClient:   databaseClient,
-		bungieApiLimiter: limiter,
-		consumerCount:    consumerCount,
-		discord:          discordSession,
+		storageManager: storageManager,
+		databaseClient: databaseClient,
+		bungieClient:   bungieClient,
+		consumerCount:  consumerCount,
+		discord:        discordSession,
+		usersChannel:   make(chan User),
 	}
 }
 
@@ -71,16 +66,14 @@ func init() {
 }
 
 func main() {
-	defer track()()
-
-	consumerCount, _ := strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
-
-	databaseClient := NewSupabaseClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
-
 	storageManager, err := NewS3Manager()
 	if err != nil {
 		log.Println("error creating storage manager: ", err)
 	}
+
+	databaseClient := NewSupabaseClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
+	bungieClient := NewBungieClient(ratelimit.New(25))
+	consumerCount, _ := strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
 
 	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
 	discord, err := discordgo.New("Bot " + discordBotToken)
@@ -88,42 +81,37 @@ func main() {
 		log.Println("error initializing discord bot: " + err.Error())
 	}
 
-	limiter := ratelimit.New(25)
-
-	app := NewApp(storageManager, databaseClient, limiter, consumerCount, discord)
+	app := NewApp(storageManager, databaseClient, *bungieClient, consumerCount, discord)
 	app.Run()
 }
 
 func (a *App) Run() {
-	wg.Add(1)
-	go scan()
-	wg.Wait()
+	defer a.track()()
+
+	users := a.scan()
 
 	for i := 1; i <= int(a.consumerCount); i++ {
 		wg.Add(1)
-		go consume(usersChannel)
+		go a.consume(a.usersChannel)
 	}
 
-	close(usersChannel)
+	for _, user := range users {
+		a.usersChannel <- user
+	}
+
+	close(a.usersChannel)
 	wg.Wait()
 }
 
-func scan() {
-	defer wg.Done()
-
-	var users []User
-	usersChannel = make(chan User, userCount)
-
-	for _, user := range users {
-		usersChannel <- user
-	}
+func (a *App) scan() []User {
+	return a.databaseClient.GetAllUsers()
 }
 
-func consume(users <-chan User) {
+func (a *App) consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
-		a.limiter.Take()
-		err := ProcessUser(user)
+		//a.bungieClient.apiLimiter.Take()
+		err := a.ProcessUser(user)
 		if err != nil {
 			log.Println("error processing user: ", err)
 			panic(err)
@@ -131,7 +119,7 @@ func consume(users <-chan User) {
 	}
 }
 
-func track() func() {
+func (a *App) track() func() {
 	var logFilePath string
 
 	start := time.Now()
@@ -140,19 +128,12 @@ func track() func() {
 		return nil
 	}
 
-	var results []map[string]interface{}
 	telem := Telemetry{
 		JobId:       jobId,
 		StartTime:   &start,
-		WorkerCount: consumerCount,
+		WorkerCount: a.consumerCount,
 	}
-	err = supabase.DB.From("telemetry").Insert(telem).Execute(&results)
-	if err != nil {
-		log.Println("error creating job telemetry record: ", err)
-	} else {
-		log.Println("successfully created job telemetry record")
-		//log.Println(results)
-	}
+	a.databaseClient.UpdateTelemetry(telem)
 
 	//goland:noinspection GoBoolExpressions
 	if runtime.GOOS == "windows" {
@@ -178,7 +159,7 @@ func track() func() {
 			}
 
 			if *isRunningInContainer {
-				storageManager.UploadLogs(logFileName)
+				a.storageManager.UploadWorkerLogs(logFileName)
 			}
 		}(logFile)
 
@@ -198,12 +179,6 @@ func track() func() {
 			ProcessingRate: processingRate.Seconds(),
 			ExecutionTime:  executionTime.Seconds(),
 		}
-		err =
-		err = supabase.DB.From("telemetry").Update(telem).Eq("id", jobId).Execute(&results)
-		if err != nil {
-			log.Println("error updating job telemetry: ", err)
-		} else {
-			log.Println("successfully uploaded job telemetry to db")
-		}
+		a.databaseClient.UpdateTelemetry(telem)
 	}
 }

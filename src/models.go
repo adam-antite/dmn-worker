@@ -1,6 +1,8 @@
 package main
 
-import "time"
+import (
+	"time"
+)
 
 type User struct {
 	DiscordId          float64 `json:"discord_id"`

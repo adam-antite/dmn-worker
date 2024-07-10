@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/bwmarrin/discordgo"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
-	supa "github.com/nedpals/supabase-go"
 	"go.uber.org/ratelimit"
 	"io"
 	"log"
@@ -22,27 +20,41 @@ import (
 
 var (
 	jobId                string
-	bungieLimiter        ratelimit.Limiter
 	messageCount         int
 	userCount            int
 	currentTime          string
-	consumerWorkerCount  int64
 	isRunningInContainer *bool
-	err                  error
 
 	wg sync.WaitGroup
 
-	discord        *discordgo.Session
-	storageManager *S3Manager
-	supabase       *supa.Client
+	//discord *discordgo.Session
+	//storageManager *S3Manager
+	//supabase *supa.Client
 
 	usersChannel chan User
 )
 
+type App struct {
+	storageManager   StorageManager
+	databaseClient   DatabaseClient
+	bungieApiLimiter ratelimit.Limiter
+	consumerCount    int64
+	discord          *discordgo.Session
+}
+
+func NewApp(storageManager StorageManager, databaseClient DatabaseClient, limiter ratelimit.Limiter, consumerCount int64, discordSession *discordgo.Session) *App {
+	return &App{
+		storageManager:   storageManager,
+		databaseClient:   databaseClient,
+		bungieApiLimiter: limiter,
+		consumerCount:    consumerCount,
+		discord:          discordSession,
+	}
+}
+
 func init() {
 	messageCount = 0
 	jobId = uuid.New().String()
-	bungieLimiter = ratelimit.New(25)
 	log.Println("starting worker with id:", jobId)
 
 	isRunningInContainer = flag.Bool("container", false, "running inside container: true or false")
@@ -55,32 +67,39 @@ func init() {
 		}
 	}
 
-	consumerWorkerCount, _ = strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
-
-	supabase = supa.CreateClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
-
-	storageManager, err = NewS3Manager()
-	if err != nil {
-		log.Println("error creating storage manager: ", err)
-	}
-
-	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
-	discord, err = discordgo.New("Bot " + discordBotToken)
-	if err != nil {
-		log.Println("error initializing discord bot: " + err.Error())
-	}
-
 	currentTime = time.Now().Format(time.RFC3339)
 }
 
 func main() {
 	defer track()()
 
+	consumerCount, _ := strconv.ParseInt(os.Getenv("WORKER_COUNT"), 10, 64)
+
+	databaseClient := NewSupabaseClient(os.Getenv("SUPABASE_URL"), os.Getenv("SUPABASE_SERVICE_ROLE_KEY"))
+
+	storageManager, err := NewS3Manager()
+	if err != nil {
+		log.Println("error creating storage manager: ", err)
+	}
+
+	discordBotToken := os.Getenv("DISCORD_BOT_TOKEN")
+	discord, err := discordgo.New("Bot " + discordBotToken)
+	if err != nil {
+		log.Println("error initializing discord bot: " + err.Error())
+	}
+
+	limiter := ratelimit.New(25)
+
+	app := NewApp(storageManager, databaseClient, limiter, consumerCount, discord)
+	app.Run()
+}
+
+func (a *App) Run() {
 	wg.Add(1)
 	go scan()
 	wg.Wait()
 
-	for i := 1; i <= int(consumerWorkerCount); i++ {
+	for i := 1; i <= int(a.consumerCount); i++ {
 		wg.Add(1)
 		go consume(usersChannel)
 	}
@@ -91,46 +110,19 @@ func main() {
 
 func scan() {
 	defer wg.Done()
-	start := time.Now()
 
-	var results []map[string]interface{}
-
-	log.Println("scanning users table...")
-
-	err := supabase.DB.From("users").Select("*").Execute(&results)
-	if err != nil {
-		log.Println("error querying users table: ", err)
-		panic(err)
-	}
-
-	userCount = len(results)
+	var users []User
 	usersChannel = make(chan User, userCount)
 
-	for _, data := range results {
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			log.Println("error marshalling user data into json")
-			panic(err)
-		}
-
-		user := User{}
-		err = json.Unmarshal(jsonData, &user)
-		if err != nil {
-			log.Println("error unmarshalling user data into user struct")
-		}
-
+	for _, user := range users {
 		usersChannel <- user
 	}
-
-	executionTime := time.Since(start)
-	log.Printf("finished scanning after %s", executionTime.Truncate(time.Millisecond))
-	log.Printf("user count: %d", userCount)
 }
 
 func consume(users <-chan User) {
 	defer wg.Done()
 	for user := range users {
-		bungieLimiter.Take()
+		a.limiter.Take()
 		err := ProcessUser(user)
 		if err != nil {
 			log.Println("error processing user: ", err)
@@ -152,7 +144,7 @@ func track() func() {
 	telem := Telemetry{
 		JobId:       jobId,
 		StartTime:   &start,
-		WorkerCount: consumerWorkerCount,
+		WorkerCount: consumerCount,
 	}
 	err = supabase.DB.From("telemetry").Insert(telem).Execute(&results)
 	if err != nil {
@@ -206,6 +198,7 @@ func track() func() {
 			ProcessingRate: processingRate.Seconds(),
 			ExecutionTime:  executionTime.Seconds(),
 		}
+		err =
 		err = supabase.DB.From("telemetry").Update(telem).Eq("id", jobId).Execute(&results)
 		if err != nil {
 			log.Println("error updating job telemetry: ", err)
